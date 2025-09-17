@@ -153,23 +153,6 @@ SELECT time, lat, lon, sats_total FROM pos_862317043590129 ORDER BY time DESC LI
 
 ---
 
-## Pushing this project to GitLab
-Create the remote repository first (at `https://git.telco.co.zw/troy/inverter_to_postgresql`). Then run from the project root:
-```bash
-git init
-# if you prefer main as the default branch
-git checkout -b main
 
-git add .
-git commit -m "Initial import: battery monitoring, MQTT→PostgreSQL bridge, utilities, dashboard"
-
-git remote add origin https://git.telco.co.zw/troy/inverter_to_postgresql.git
-# if the repository already exists and is empty, push the new branch
-git push -u origin main
-```
-If the repository already has content and you need to force replace with this codebase, use with caution:
-```bash
-git push -u origin main --force
-```
 
 GitLab instance reference: [`https://git.telco.co.zw/troy/inverter_to_postgresql`](https://git.telco.co.zw/troy/inverter_to_postgresql)
