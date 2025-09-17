@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Battery Monitor</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+  </head>
+  <body>
+    <header class="top">
+      <h1>Battery Monitor</h1>
+      <div class="controls">
+        <label>Device</label>
+        <select id="device"></select>
+        <label>Window</label>
+        <select id="window">
+          <option value="2">2h</option>
+          <option value="6" selected>6h</option>
+          <option value="12">12h</option>
+          <option value="24">24h</option>
+        </select>
+        <button id="refresh">Refresh</button>
+      </div>
+    </header>
+    <main>
+      <section class="cards">
+        <div class="card" id="card-status">
+          <h2>Status</h2>
+          <div class="grid kpi">
+            <div><span class="k">SOC</span><span id="k-soc" class="v">–</span></div>
+            <div><span class="k">Voltage</span><span id="k-v" class="v">–</span></div>
+            <div><span class="k">Current</span><span id="k-i" class="v">–</span></div>
+            <div><span class="k">Cycles</span><span id="k-cycles" class="v">–</span></div>
+          </div>
+          <div class="status-text" id="k-status">–</div>
+        </div>
+        <div class="card"><h2>SOC / Voltage / Current</h2><div class="chart"><canvas id="c-status"></canvas></div></div>
+        <div class="card"><h2>Temperatures</h2><div class="chart"><canvas id="c-temps"></canvas></div></div>
+        <div class="card"><h2>Cell Voltages</h2><div class="chart"><canvas id="c-cells"></canvas></div></div>
+        <div class="card"><h2>Positions</h2><div class="chart"><canvas id="c-pos"></canvas></div></div>
+        <div class="card"><h2>Map</h2><div id="map"></div></div>
+      </section>
+    </main>
+    <script src="/static/main.js"></script>
+  </body>
+  </html>
+
+

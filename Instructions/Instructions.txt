@@ -1,0 +1,293 @@
+### **Detailed Guide for Decoding MQTT Payloads**
+
+This guide will assist your development team in decoding the MQTT payloads received from your devices, based on the attached protocol documentation.
+
+---
+
+### **General Structure of MQTT Payloads**
+
+1. **Message Header** (6 bytes):
+- **Start Code (2 bytes)**: Always `0x4350` ("CP" in ASCII) indicates the beginning of a message.
+- **Protocol Version (1 byte)**: Fixed value `0x11`, denotes version `1.1`.
+- **Sequence Number (2 bytes)**: Unsigned integer, represents the message sequence number (0–65535).
+- **Transaction ID (1 byte)**: Unsigned integer, identifies the transaction (0–255).
+
+2. **Message Body** (variable length):
+- Dynamic content depends on the message type.
+- Defined by specific message formats (e.g., Battery Status Report, GPS Data, etc.).
+
+---
+
+### **Step-by-Step Decoding Instructions**
+
+#### **Step 1: Extract Message Header**
+1. **Start Code (2 bytes)**:
+- Extract the first two bytes.
+- Verify they match `0x4350` (ASCII "CP").
+- Example: `43 50` → Valid start code.
+
+2. **Protocol Version (1 byte)**:
+- Extract the next byte.
+- Verify it matches `0x11` (Version 1.1).
+- Example: `11` → Valid protocol version.
+
+3. **Sequence Number (2 bytes)**:
+- Extract the next two bytes.
+- Convert from hexadecimal to decimal (unsigned integer).
+- Example: `00 05` → Sequence Number = `5`.
+
+4. **Transaction ID (1 byte)**:
+- Extract the next byte.
+- Convert from hexadecimal to decimal (unsigned integer).
+- Example: `01` → Transaction ID = `1`.
+
+#### **Step 2: Identify Message Type**
+- Use the first byte(s) of the **Message Body** to determine the message type.
+- Refer to the protocol document for topic-specific structures. Examples:
+- **Battery Dynamic Data Report** (`batPropertyRprt`):
+- Contains voltage, current, SOC, etc.
+- **GPS Location Data Report** (`batPositonRprt`):
+- Contains recent GPS data.
+
+#### **Step 3: Decode Message Body**
+- Based on the message type, parse the fields as defined in the protocol.
+
+---
+
+### **Detailed Example**
+
+#### **Payload**: `4350110005010101`
+
+1. **Message Header**:
+- **Start Code**: `4350` → "CP".
+- **Protocol Version**: `11` → Version 1.1.
+- **Sequence Number**: `0005` → Decimal `5`.
+- **Transaction ID**: `01` → Decimal `1`.
+
+2. **Message Body**:
+- **First Byte**: `01` → Likely a **Battery Status Report**.
+- **Second Byte**: `01` → Status flag or specific data.
+
+3. **Interpret the Message Type**:
+- Check the protocol document for **Battery Status Report** or **Dynamic Data Report**.
+- Decode subsequent fields accordingly.
+
+---
+
+### **Common Message Types and Structures**
+
+1. **Battery Dynamic Data Report** (`batPropertyRprt`):
+- **Fields**:
+- Voltage (2 bytes, 0.1V units).
+- Current (2 bytes, signed, 0.1A units).
+- SOC (2 bytes, percentage).
+- Cell-level voltage (variable length).
+- Temperature (variable length).
+- **Example**: Refer to section **4.4 Battery Data** in the protocol.
+
+2. **Battery Location Data Report** (`batPositonRprt`):
+- **Fields**:
+- Latitude/Longitude (BCD format, degrees).
+- GPS Timestamp (BCD format, DDMMYY and HHMMSS).
+- Speed (2 bytes, 0.01 km/h).
+- **Example**: Refer to section **4.6 Position Info List**.
+
+3. **Device Shutdown Command** (`batteryPowerOffReq`):
+- **Fields**:
+- Power Off Flag (1 byte, `0x03` indicates shutdown).
+- Cause (1 byte, e.g., `0x01` for low power).
+- **Example**: Refer to section **3.8 Battery PowerOff Command Param**.
+
+4. **Remote Control Command** (`bmsCtrReq`):
+- **Fields**:
+- Control Type (1 byte, e.g., 1 for discharge switch).
+- Value (1 byte, 0 for allow, 1 for prohibit).
+- **Example**: Refer to section **3.7 Battery Remote Control Command Param**.
+
+---
+
+### **Testing and Validation**
+
+1. **Test Environment**:
+- Simulate MQTT messages using tools like **MQTT.fx** or **Mosquitto**.
+- Validate parsing logic against the protocol's defined structures.
+
+2. **Edge Case Testing**:
+- Test with invalid headers (e.g., incorrect start code or version).
+- Simulate incomplete or malformed payloads.
+
+3. **Integration Testing**:
+- Test end-to-end communication between the device and the IoT platform.
+- Verify that commands (e.g., shutdown or remote control) execute as expected.
+
+---
+
+### **Tools and Libraries**
+
+- **MQTT Libraries**:
+- Python: `paho-mqtt`
+- JavaScript: `mqtt`
+- Java: Eclipse Paho MQTT
+- **Testing Tools**:
+- MQTT.fx, Mosquitto, or HiveMQ for message simulation.
+- **Logging and Debugging**:
+- Enable detailed logging for sent/received payloads.
+- Use hex-to-decimal conversion utilities for manual validation.
+
+---
+
+### **Deliverables for Development Team**
+1. Decoding library/module for all message types.
+2. Validation scripts to test the decoding logic.
+3. Documentation for payload structures and field mappings.
+
+This guide ensures accurate decoding of MQTT messages for smooth integration and functionality. Let me know if further details are needed!
+
+14:54
+Here is a detailed guide to decoding the requested parameters from the BMS messages based on the MQTT protocol and the provided documents.
+
+---
+
+### **Parameters to Decode**
+1. **State of Charge (SOC)**
+2. **Number of Cycles (Charge/Discharge Loops)**
+3. **Battery Voltage**
+4. **System Current from AC**
+5. **System Current from PV**
+6. **Load on the Inverter**
+
+---
+
+### **Structure of Relevant Data**
+The required values are found within **Battery Dynamic Data Reporting (`batPropertyRprt`)**, specifically in the **Battery Data** section as defined in the protocol. Below is a breakdown of each field and how to extract it.
+
+---
+
+### **Field Definitions**
+
+1. **State of Charge (SOC)**
+- Found in the **Battery Data** structure under `Remaining Capacity` and `Total Capacity`.
+- Formula:
+\[
+SOC = \left( \frac{\text{Remaining Capacity}}{\text{Total Capacity}} \right) \times 100
+\]
+- **Data Format**:
+- `Remaining Capacity`: 2 bytes (0.1 Ah units, unsigned integer).
+- `Total Capacity`: 2 bytes (0.1 Ah units, unsigned integer).
+
+2. **Number of Cycles (Charge/Discharge Loops)**
+- Field Name: `Loop Times`.
+- **Data Format**:
+- Length: 2 bytes (unsigned integer).
+- Represents the number of full charge/discharge cycles.
+
+3. **Battery Voltage**
+- Found in the **Cell Voltage List**.
+- **Data Format**:
+- Each cell's voltage occupies 2 bytes (unsigned integer, in millivolts).
+- To get total voltage, sum up all cell voltages.
+\[
+\text{Total Voltage} = \sum \text{(Voltage of each cell)}
+\]
+
+4. **System Current (AC and PV)**
+- Found in the `Current` field.
+- **Data Format**:
+- Length: 2 bytes (signed integer, 0.1 A units).
+- Positive values indicate charging, and negative values indicate discharging.
+- **AC vs. PV**:
+- The system may report these separately depending on the implementation. Check if there's a `Source` field to distinguish AC/PV.
+
+5. **Load on the Inverter**
+- Found in the `Battery Status` or similar fields.
+- Look for load-related metrics or power consumption fields:
+- **Load Current**: Reported as part of `Battery Data` or `Battery Status`.
+- **Data Format**:
+- 2 bytes (signed integer, 0.1 A units).
+
+---
+
+### **Decoding Steps**
+
+#### **1. Extract Payload**
+Receive the payload via MQTT under the topic `/${productName}/${deviceName}/user/batPropertyRprt`.
+
+#### **2. Decode the Header**
+Extract the first 6 bytes as the header:
+- **Start Code**: Verify `0x4350`.
+- **Protocol Version**: Verify `0x11`.
+- **Sequence Number**: Extract the 2-byte unsigned integer.
+- **Transaction ID**: Extract the 1-byte unsigned integer.
+
+#### **3. Parse Battery Data**
+Extract the following fields in order based on the protocol:
+1. **Remaining Capacity**:
+- Bytes: Offset after the header.
+- Length: 2 bytes.
+- Convert to decimal and multiply by 0.1 for Ah.
+
+2. **Total Capacity**:
+- Bytes: Immediately after `Remaining Capacity`.
+- Length: 2 bytes.
+- Convert to decimal and multiply by 0.1 for Ah.
+
+3. **Loop Times (Cycles)**:
+- Bytes: Offset depends on the length of earlier fields.
+- Length: 2 bytes.
+- Convert to decimal.
+
+4. **Cell Voltage List**:
+- Bytes: Variable length after `Loop Times`.
+- Each voltage: 2 bytes, in millivolts.
+- Sum all cells for total voltage.
+
+5. **Current**:
+- Bytes: Following voltage fields.
+- Length: 2 bytes, signed integer.
+- Multiply by 0.1 for amperes.
+
+6. **Load Current** (if separate):
+- Check protocol for specific fields indicating inverter load.
+- Decode as signed integers, similar to `Current`.
+
+#### **4. Convert and Present Data**
+For each parameter:
+- Convert raw data from hexadecimal to decimal.
+- Apply scaling factors (e.g., 0.1 for Ah or A).
+- Aggregate values if needed (e.g., sum of cell voltages).
+
+---
+
+### **Example Decoding**
+
+#### **Payload Example**: `435011000501021234567890ABCDEF1234`
+
+1. **Header**:
+- `43 50`: Start Code ("CP").
+- `11`: Protocol Version (1.1).
+- `00 05`: Sequence Number (5).
+- `01`: Transaction ID (1).
+
+2. **Battery Data**:
+- `Remaining Capacity`: `12 34` (Hex) → `4660` (Decimal) → `466.0 Ah`.
+- `Total Capacity`: `56 78` (Hex) → `22136` (Decimal) → `2213.6 Ah`.
+- **SOC**:
+\[
+\text{SOC} = \left( \frac{466.0}{2213.6} \right) \times 100 = 21.05\%
+\]
+
+- `Loop Times`: `90 AB` (Hex) → `37035` (Decimal).
+- **Cell Voltages**:
+- `EF 12` (Hex) → `61138 mV`.
+- `34` (Hex) → Single byte; parse as per document.
+
+- **Current**: Depends on position and scaling.
+
+---
+
+### **Testing**
+- Use tools like `MQTT.fx` or `Mosquitto` to simulate payloads.
+- Write a script to parse and validate each parameter.
+- Ensure alignment with protocol definitions.
+
+This approach will ensure accurate extraction and decoding of the battery's data. Let me know if you'd like implementation examples or scripts!

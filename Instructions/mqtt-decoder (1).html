@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Battery Data Decoder - SWS Protocol</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .input-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button.secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .debug-section {
+            background: #2d3748;
+            color: #fff;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .debug-section.show {
+            display: block;
+        }
+        
+        .debug-line {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        
+        .debug-header {
+            color: #68d391;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .debug-error {
+            color: #fc8181;
+        }
+        
+        .debug-warning {
+            color: #f6ad55;
+        }
+        
+        .output-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        
+        .data-item:last-child {
+            border-bottom: none;
+        }
+        
+        .data-label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .data-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .error {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 8px;
+        }
+        
+        .status-on {
+            background: #51cf66;
+            box-shadow: 0 0 5px #51cf66;
+        }
+        
+        .status-off {
+            background: #868e96;
+        }
+        
+        .status-alarm {
+            background: #ff6b6b;
+            box-shadow: 0 0 5px #ff6b6b;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .voltage-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .voltage-item {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        
+        .voltage-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .voltage-value {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .hex-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+        
+        .toggle-debug {
+            background: #4a5568;
+            font-size: 14px;
+            padding: 8px 20px;
+        }
+        
+        .sample-buttons {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .sample-btn {
+            background: #718096;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔋 MQTT Battery Data Decoder - SWS Protocol</h1>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <label for="payload">Enter MQTT Payload (hex string):</label>
+                <textarea id="payload" rows="4" placeholder="Example: 4350 1104 100c 1cff ffff..."></textarea>
+            </div>
+            <div class="button-group">
+                <button onclick="decodePayload()">🔍 Decode Payload</button>
+                <button class="toggle-debug secondary" onclick="toggleDebug()">🐛 Toggle Debug</button>
+            </div>
+            <div class="sample-buttons">
+                <button class="sample-btn" onclick="loadDynamicSample()">Load Dynamic Data Sample</button>
+                <button class="sample-btn" onclick="loadStaticSample()">Load Static Data Sample</button>
+            </div>
+        </div>
+        
+        <div id="debug" class="debug-section"></div>
+        
+        <div id="output" class="output-section"></div>
+    </div>
+
+    <script>
+        let debugMode = false;
+        
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const debugSection = document.getElementById('debug');
+            debugSection.classList.toggle('show');
+        }
+        
+        function loadDynamicSample() {
+            document.getElementById('payload').value = '4350 1104 100c 1cff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ff00 0000 001f 0000 100c fd0c fd0c fe0c fd0c fd0c fd0c fd0c fe02 1d1c 0216 1700 0b03 2d03 3d0e 4336 3438 3031 00ff ff00 ffff ff08';
+        }
+        
+        function loadStaticSample() {
+            document.getElementById('payload').value = '4350 1100 0404 1cff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ffff ff0f 3836 3233 3137 3034 3335 3930 3132 390f 3634 3830 3133 3031 3639 3436 3334 370f 3836 3233 3137 3034 3335 3930 3132 3913 4348 4539 4555 5f75 6172 742e 312e 7a79 2e6d 7107 4c54 452d 4330 3100 0330 2e30 0330 2e30';
+        }
+        
+        function log(message, type = 'info') {
+            if (!debugMode) return;
+            
+            const debugSection = document.getElementById('debug');
+            const line = document.createElement('div');
+            line.className = 'debug-line';
+            
+            if (type === 'header') {
+                line.className += ' debug-header';
+            } else if (type === 'error') {
+                line.className += ' debug-error';
+            } else if (type === 'warning') {
+                line.className += ' debug-warning';
+            }
+            
+            line.textContent = message;
+            debugSection.appendChild(line);
+        }
+        
+        class MQTTDecoder {
+            constructor(hexString) {
+                this.hex = hexString.replace(/\s/g, '');
+                this.bytes = [];
+                for (let i = 0; i < this.hex.length; i += 2) {
+                    this.bytes.push(parseInt(this.hex.substr(i, 2), 16));
+                }
+                this.position = 0;
+                log(`Total bytes: ${this.bytes.length}`);
+            }
+            
+            readByte() {
+                if (this.position >= this.bytes.length) {
+                    return null;
+                }
+                return this.bytes[this.position++];
+            }
+            
+            readBytes(count) {
+                const result = [];
+                for (let i = 0; i < count; i++) {
+                    const byte = this.readByte();
+                    if (byte === null) break;
+                    result.push(byte);
+                }
+                return result;
+            }
+            
+            readUInt16() {
+                const bytes = this.readBytes(2);
+                if (bytes.length < 2) return null;
+                return (bytes[0] << 8) | bytes[1];
+            }
+            
+            readInt16() {
+                const uint = this.readUInt16();
+                if (uint === null) return null;
+                return uint > 32767 ? uint - 65536 : uint;
+            }
+            
+            readLV() {
+                const length = this.readByte();
+                if (length === null || length === 0x00 || length === 0xFF) {
+                    return null;
+                }
+                return this.readBytes(length);
+            }
+            
+            bytesToString(bytes) {
+                if (!bytes) return '';
+                return bytes
+                    .filter(b => b !== 0xFF && b !== 0x00)
+                    .map(b => String.fromCharCode(b))
+                    .join('');
+            }
+            
+            decode() {
+                const result = {};
+                
+                // Parse Header
+                result.header = {
+                    startCode: this.readUInt16(),
+                    protocolVersion: this.readByte(),
+                    sequenceNumber: this.readUInt16(),
+                    transactionId: this.readByte()
+                };
+                
+                if (result.header.startCode !== 0x4350) {
+                    throw new Error('Invalid start code');
+                }
+                
+                // Detect message type
+                const savedPosition = this.position;
+                const firstByte = this.bytes[this.position];
+                
+                let isStaticData = false;
+                if (firstByte === 0x1C) {
+                    const testBytes = this.bytes.slice(this.position + 1, this.position + 29);
+                    if (testBytes.every(b => b === 0xFF)) {
+                        const nextLength = this.bytes[this.position + 29];
+                        if (nextLength > 0 && nextLength < 0x20) {
+                            isStaticData = true;
+                        }
+                    }
+                }
+                
+                this.position = savedPosition;
+                result.messageType = isStaticData ? 'Battery Static Data' : 'Battery Dynamic Data';
+                
+                if (isStaticData) {
+                    result.staticData = this.parseStaticData();
+                } else {
+                    result.dynamicData = this.parseDynamicData();
+                }
+                
+                return result;
+            }
+            
+            parseDynamicData() {
+                const data = {};
+                
+                // Product SN
+                const snLength = this.bytes[this.position];
+                if (snLength === 0x1C) {
+                    this.position++;
+                    const snBytes = this.readBytes(28);
+                    const allFF = snBytes.every(b => b === 0xFF);
+                    data.productSN = allFF ? 'Not Set' : this.bytesToString(snBytes);
+                } else {
+                    const productSN = this.readLV();
+                    data.productSN = productSN ? this.bytesToString(productSN) : 'Not Set';
+                }
+                
+                // Battery Status
+                const statusBytes = this.readBytes(4);
+                data.batteryStatus = this.parseBatteryStatus(statusBytes);
+                
+                // Battery Data
+                data.batteryData = this.parseBatteryData();
+                
+                // Network Info
+                data.networkInfo = this.parseNetworkInfo();
+                
+                return data;
+            }
+            
+            parseStaticData() {
+                const data = {};
+                
+                // Product SN
+                const snLength = this.bytes[this.position];
+                if (snLength === 0x1C) {
+                    this.position++;
+                    const snBytes = this.readBytes(28);
+                    const allFF = snBytes.every(b => b === 0xFF);
+                    data.productSN = allFF ? 'Not Set' : this.bytesToString(snBytes);
+                } else {
+                    const productSN = this.readLV();
+                    data.productSN = productSN ? this.bytesToString(productSN) : 'Not Set';
+                }
+                
+                // GPS SN
+                const gpsSN = this.readLV();
+                data.gpsSN = gpsSN ? this.bytesToString(gpsSN) : 'Not Set';
+                
+                // GPS IMSI
+                const gpsIMSI = this.readLV();
+                data.gpsIMSI = gpsIMSI ? this.bytesToString(gpsIMSI) : 'Not Set';
+                
+                // GPS IMEI
+                const gpsIMEI = this.readLV();
+                data.gpsIMEI = gpsIMEI ? this.bytesToString(gpsIMEI) : 'Not Set';
+                
+                // GPS Software Version
+                const gpsSoftware = this.readLV();
+                data.gpsSoftwareVersion = gpsSoftware ? this.bytesToString(gpsSoftware) : 'Not Set';
+                
+                // GPS Hardware Version
+                const gpsHardware = this.readLV();
+                data.gpsHardwareVersion = gpsHardware ? this.bytesToString(gpsHardware) : 'Not Set';
+                
+                // BMS SN
+                const bmsSN = this.readLV();
+                data.bmsSN = bmsSN ? this.bytesToString(bmsSN) : 'Not Set';
+                
+                // BMS Software Version
+                const bmsSoftware = this.readLV();
+                data.bmsSoftwareVersion = bmsSoftware ? this.bytesToString(bmsSoftware) : 'Not Set';
+                
+                // BMS Hardware Version
+                const bmsHardware = this.readLV();
+                data.bmsHardwareVersion = bmsHardware ? this.bytesToString(bmsHardware) : 'Not Set';
+                
+                return data;
+            }
+            
+            parseBatteryStatus(bytes) {
+                if (!bytes || bytes.length < 4) return null;
+                
+                const status = {};
+                const bits = (bytes[3] << 24) | (bytes[2] << 16) | (bytes[1] << 8) | bytes[0];
+                
+                status.charging = (bits & 0x01) !== 0;
+                status.fullCharge = (bits & 0x02) !== 0;
+                status.chargeOvercurrent = (bits & 0x04) !== 0;
+                status.cellOvervoltage = (bits & 0x08) !== 0;
+                status.discharging = (bits & 0x10) !== 0;
+                status.shortCircuit = (bits & 0x20) !== 0;
+                status.dischargeOvercurrent = (bits & 0x40) !== 0;
+                status.cellUndervoltage = (bits & 0x80) !== 0;
+                status.cellLineOpen = (bits & 0x100) !== 0;
+                status.tempLineOpen = (bits & 0x200) !== 0;
+                status.cellHighTemp = (bits & 0x400) !== 0;
+                status.cellLowTemp = (bits & 0x800) !== 0;
+                status.bmsHighTemp = (bits & 0x1000) !== 0;
+                status.chargeProhibited = (bits & 0x4000) !== 0;
+                status.dischargeProhibited = (bits & 0x8000) !== 0;
+                status.dischargeMosFailed = (bits & 0x10000) !== 0;
+                status.chargingMosOn = (bits & 0x20000) !== 0;
+                status.dischargeMosOn = (bits & 0x40000) !== 0;
+                status.chargeMosFailed = (bits & 0x80000) !== 0;
+                
+                return status;
+            }
+            
+            parseBatteryData() {
+                const data = {};
+                
+                // Current
+                const current = this.readInt16();
+                data.current = current !== null ? current / 10 : null;
+                
+                // Cell Voltage List
+                const voltageListLength = this.readByte();
+                if (voltageListLength > 0 && voltageListLength < 0xFF) {
+                    data.cellVoltages = [];
+                    const voltageCount = voltageListLength / 2;
+                    for (let i = 0; i < voltageCount; i++) {
+                        const voltage = this.readUInt16();
+                        if (voltage !== null && voltage !== 0xFFFF) {
+                            data.cellVoltages.push(voltage);
+                        }
+                    }
+                }
+                
+                // BMS Temperature List
+                const bmsTempLength = this.readByte();
+                if (bmsTempLength > 0 && bmsTempLength < 0xFF) {
+                    data.bmsTemperatures = [];
+                    for (let i = 0; i < bmsTempLength; i++) {
+                        const temp = this.readByte();
+                        if (temp !== null && temp !== 0xFF) {
+                            const signedTemp = temp > 127 ? temp - 256 : temp;
+                            data.bmsTemperatures.push(signedTemp);
+                        }
+                    }
+                }
+                
+                // Cell Temperature List
+                const cellTempLength = this.readByte();
+                if (cellTempLength > 0 && cellTempLength < 0xFF) {
+                    data.cellTemperatures = [];
+                    for (let i = 0; i < cellTempLength; i++) {
+                        const temp = this.readByte();
+                        if (temp !== null && temp !== 0xFF) {
+                            const signedTemp = temp > 127 ? temp - 256 : temp;
+                            data.cellTemperatures.push(signedTemp);
+                        }
+                    }
+                }
+                
+                // Loop Times
+                data.loopTimes = this.readUInt16();
+                
+                // Remaining Capacity
+                const remainingCap = this.readUInt16();
+                data.remainingCapacity = remainingCap !== null ? remainingCap / 10 : null;
+                
+                // Total Capacity
+                const totalCap = this.readUInt16();
+                data.totalCapacity = totalCap !== null ? totalCap / 10 : null;
+                
+                // Calculate SOC
+                if (data.remainingCapacity && data.totalCapacity && data.totalCapacity > 0) {
+                    data.soc = Math.round((data.remainingCapacity / data.totalCapacity) * 100);
+                }
+                
+                return data;
+            }
+            
+            parseNetworkInfo() {
+                const info = {};
+                
+                const remainingBytes = this.bytes.length - this.position;
+                if (remainingBytes < 14) return info;
+                
+                const rssi = this.readByte();
+                info.rssi = (rssi !== null && rssi !== 0x00 && rssi !== 0xFF) ? -rssi : null;
+                
+                const plmn = this.readBytes(6);
+                if (plmn && plmn.length === 6) {
+                    info.plmn = plmn.map(b => b.toString(16).padStart(2, '0')).join('');
+                }
+                
+                info.lac = this.readUInt16();
+                
+                const ciBytes = this.readBytes(4);
+                if (ciBytes && ciBytes.length === 4) {
+                    info.ci = (ciBytes[0] << 24) | (ciBytes[1] << 16) | (ciBytes[2] << 8) | ciBytes[3];
+                }
+                
+                if (this.position < this.bytes.length) {
+                    const rat = this.readByte();
+                    info.networkType = rat === 1 ? '2G' : rat === 8 ? '4G' : `Unknown (${rat})`;
+                }
+                
+                return info;
+            }
+        }
+        
+        function decodePayload() {
+            const output = document.getElementById('output');
+            const debugSection = document.getElementById('debug');
+            const payload = document.getElementById('payload').value.trim();
+            
+            output.innerHTML = '';
+            debugSection.innerHTML = '';
+            
+            if (!payload) {
+                output.innerHTML = '<div class="error">Please enter a payload to decode</div>';
+                return;
+            }
+            
+            try {
+                const decoder = new MQTTDecoder(payload);
+                const data = decoder.decode();
+                
+                // Header Card
+                const headerCard = createCard('Message Header', [
+                    { label: 'Start Code', value: '0x' + data.header.startCode.toString(16).toUpperCase() },
+                    { label: 'Protocol Version', value: '0x' + data.header.protocolVersion.toString(16).toUpperCase() },
+                    { label: 'Sequence Number', value: data.header.sequenceNumber },
+                    { label: 'Transaction ID', value: data.header.transactionId },
+                    { label: 'Message Type', value: data.messageType }
+                ]);
+                output.appendChild(headerCard);
+                
+                if (data.staticData) {
+                    displayStaticData(data.staticData, output);
+                } else if (data.dynamicData) {
+                    displayDynamicData(data.dynamicData, output);
+                }
+                
+            } catch (error) {
+                output.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function displayStaticData(data, output) {
+            // Device Info
+            const deviceItems = [];
+            if (data.productSN) deviceItems.push({ label: 'Product SN', value: data.productSN });
+            
+            if (deviceItems.length > 0) {
+                output.appendChild(createCard('Device Information', deviceItems));
+            }
+            
+            // GPS Module Info
+            const gpsItems = [];
+            if (data.gpsSN && data.gpsSN !== 'Not Set') {
+                gpsItems.push({ label: 'GPS Serial Number', value: data.gpsSN });
+            }
+            if (data.gpsIMSI && data.gpsIMSI !== 'Not Set') {
+                gpsItems.push({ label: 'GPS IMSI', value: data.gpsIMSI });
+            }
+            if (data.gpsIMEI && data.gpsIMEI !== 'Not Set') {
+                gpsItems.push({ label: 'GPS IMEI', value: data.gpsIMEI });
+            }
+            if (data.gpsSoftwareVersion && data.gpsSoftwareVersion !== 'Not Set') {
+                gpsItems.push({ label: 'Software Version', value: data.gpsSoftwareVersion });
+            }
+            if (data.gpsHardwareVersion && data.gpsHardwareVersion !== 'Not Set') {
+                gpsItems.push({ label: 'Hardware Version', value: data.gpsHardwareVersion });
+            }
+            
+            if (gpsItems.length > 0) {
+                output.appendChild(createCard('📡 GPS Module Information', gpsItems));
+            }
+            
+            // BMS Info
+            const bmsItems = [];
+            if (data.bmsSN && data.bmsSN !== 'Not Set') {
+                bmsItems.push({ label: 'BMS Serial Number', value: data.bmsSN });
+            }
+            if (data.bmsSoftwareVersion && data.bmsSoftwareVersion !== 'Not Set') {
+                bmsItems.push({ label: 'Software Version', value: data.bmsSoftwareVersion });
+            }
+            if (data.bmsHardwareVersion && data.bmsHardwareVersion !== 'Not Set') {
+                bmsItems.push({ label: 'Hardware Version', value: data.bmsHardwareVersion });
+            }
+            
+            if (bmsItems.length > 0) {
+                output.appendChild(createCard('⚡ BMS Information', bmsItems));
+            }
+        }
+        
+        function displayDynamicData(data, output) {
+            // Device Info
+            output.appendChild(createCard('Device Information', [
+                { label: 'Product SN', value: data.productSN || 'Not Set' }
+            ]));
+            
+            // Battery Status
+            if (data.batteryStatus) {
+                const statusItems = [
+                    { label: 'Charging', value: data.batteryStatus.charging, isStatus: true },
+                    { label: 'Discharging', value: data.batteryStatus.discharging, isStatus: true },
+                    { label: 'Charge MOS', value: data.batteryStatus.chargingMosOn, isStatus: true },
+                    { label: 'Discharge MOS', value: data.batteryStatus.dischargeMosOn, isStatus: true }
+                ];
+                output.appendChild(createCard('Battery Status', statusItems));
+            }
+            
+            // Battery Data
+            if (data.batteryData) {
+                const batteryItems = [];
+                
+                if (data.batteryData.current !== null) {
+                    batteryItems.push({ 
+                        label: 'Current', 
+                        value: data.batteryData.current.toFixed(1) + ' A'
+                    });
+                }
+                
+                if (data.batteryData.remainingCapacity !== null) {
+                    batteryItems.push({ 
+                        label: 'Remaining Capacity', 
+                        value: data.batteryData.remainingCapacity.toFixed(1) + ' Ah'
+                    });
+                }
+                
+                if (data.batteryData.totalCapacity !== null) {
+                    batteryItems.push({ 
+                        label: 'Total Capacity', 
+                        value: data.batteryData.totalCapacity.toFixed(1) + ' Ah'
+                    });
+                }
+                
+                if (data.batteryData.soc !== undefined) {
+                    batteryItems.push({ 
+                        label: 'State of Charge', 
+                        value: data.batteryData.soc + '%'
+                    });
+                }
+                
+                if (data.batteryData.loopTimes !== null) {
+                    batteryItems.push({ 
+                        label: 'Charge Cycles', 
+                        value: data.batteryData.loopTimes
+                    });
+                }
+                
+                if (batteryItems.length > 0) {
+                    output.appendChild(createCard('Battery Metrics', batteryItems));
+                }
+                
+                // Temperatures
+                const tempItems = [];
+                if (data.batteryData.bmsTemperatures) {
+                    data.batteryData.bmsTemperatures.forEach((temp, i) => {
+                        tempItems.push({ label: `BMS Temp ${i+1}`, value: temp + '°C' });
+                    });
+                }
+                if (data.batteryData.cellTemperatures) {
+                    data.batteryData.cellTemperatures.forEach((temp, i) => {
+                        tempItems.push({ label: `Cell Temp ${i+1}`, value: temp + '°C' });
+                    });
+                }
+                if (tempItems.length > 0) {
+                    output.appendChild(createCard('Temperature Sensors', tempItems));
+                }
+            }
+            
+            // Network Info
+            if (data.networkInfo && data.networkInfo.rssi !== null) {
+                const networkItems = [];
+                
+                if (data.networkInfo.rssi !== null) {
+                    networkItems.push({ 
+                        label: 'Signal Strength', 
+                        value: data.networkInfo.rssi + ' dBm'
+                    });
+                }
+                
+                if (data.networkInfo.networkType) {
+                    networkItems.push({ 
+                        label: 'Network Type', 
+                        value: data.networkInfo.networkType
+                    });
+                }
+                
+                output.appendChild(createCard('Network Information', networkItems));
+            }
+        }
+        
+        function createCard(title, items) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            let html = `<h2>${title}</h2>`;
+            
+            items.forEach(item => {
+                if (item.isStatus) {
+                    html += `
+                        <div class="data-item">
+                            <span class="data-label">${item.label}</span>
+                            <span class="data-value">
+                                ${item.value ? 'Active' : 'Inactive'}
+                                <span class="status-indicator ${item.value ? 'status-on' : 'status-off'}"></span>
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="data-item">
+                            <span class="data-label">${item.label}</span>
+                            <span class="data-value">${item.value}</span>
+                        </div>
+                    `;
+                }
+            });
+            
+            card.innerHTML = html;
+            return card;
+        }
+    </script>
+</body>
+</html>

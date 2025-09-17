@@ -1,0 +1,5 @@
+flask==3.0.3
+psycopg[binary]==3.2.3
+
+
+

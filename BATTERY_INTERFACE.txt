@@ -1,0 +1,68 @@
+Battery Monitoring & Control - Interface Guide
+
+Broker
+- Host: mqtt-cloud-1.telco.co.zw
+- Port: 1883
+- Product prefix: /SW_GPS/<device>/user/
+
+Protocol header (hex, big-endian)
+- start_code: 0x4350
+- version: 0x11
+- sequence: 2 bytes (0..65535)
+- transaction_id: 1 byte (0..255)
+- Some requests are header-only (no body).
+
+Topics
+- batPropertyRprt (device -> platform): dynamic battery data report
+- batPropertyExtRprt (device -> platform): static info report
+- batPositonRprt (device -> platform): recent GPS positions (<=10)
+- batPropertyReq (platform -> device): query dynamic data (header only)
+- batPropertyRsp (device -> platform): response to dynamic query
+- batPropertyExtReq (platform -> device): query static data (header only)
+- batPropertyExtRsp (device -> platform): static response (sometimes spelled batPropertyExRsp)
+- bmsCtrReq (platform -> device): remote control (header + 2 bytes)
+- bmsCtrRsp (device -> platform): control response echo
+- batteryPowerOffReq (platform -> device): power-off command (header + 2 bytes)
+
+Message bodies (key points)
+- Battery Props (dynamic):
+  - status (4 bytes bitfield)
+  - current (int16, 0.1 A)
+  - cell voltages (LV; 2 bytes per cell, mV)
+  - BMS temperatures (LV; 1 byte each, value-40 C)
+  - Cell temperatures (LV; 1 byte each, value-40 C)
+  - loop cycles (uint16)
+  - remaining capacity (uint16, 0.1 Ah)
+  - total capacity (uint16, 0.1 Ah)
+  - network status (RSSI, PLMN 6B, LAC 2B, CI 4B, RAT 1B)
+- Battery Props Ext (static):
+  - LV strings: product_sn, gps_sn, gps_imsi, gps_imei, gps_sw_ver, gps_hw_ver, bms_sn
+  - optional LV strings if present: bms_sw_ver, bms_hw_ver
+- Position report: list of up to 10 records; BCD-encoded lat/lon/time, sats, speed, direction
+- Control (bmsCtrReq): control_type (1=discharge, 2=charging, 3=static), value (0 allow, 1 disallow / enable)
+- Power-off: flag (0x03 to execute), cause (1=low power, 2=standing mode)
+
+Unified CLI: battery_tool.py
+Examples
+- Listen to everything:
+  python battery_tool.py listen
+- Listen to dynamic reports only:
+  python battery_tool.py listen --filter dyn
+- Request dynamic data now:
+  python battery_tool.py request-dyn 862317043590129
+- Request static data now:
+  python battery_tool.py request-ext /SW_GPS/862317043590129
+- Allow discharge:
+  python battery_tool.py ctrl 862317043590129 allow_discharge
+- Disallow charging:
+  python battery_tool.py ctrl 862317043590129 no_charging
+- Send power-off (flag 0x03, cause=1):
+  python battery_tool.py poweroff 862317043590129 --flag 0x03 --cause 1
+- Compute MD5 signature (uppercase):
+  python battery_tool.py sign <appid> <nonce> <uid> --key <key>
+
+Notes
+- Device ID is the GPS code; you can also pass /SW_GPS/<device> and the tool extracts the ID.
+- RSSI is expressed as negative dBm (0 or 255 are invalid).
+- All-0xFF LV strings are shown as UNKNOWN.
+- Temperature values apply -40 C offset.

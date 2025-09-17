@@ -1,0 +1,114 @@
+Battery Monitoring → PostgreSQL: How it works and how to use it
+
+1) Overview (data flow)
+- Devices publish MQTT messages under `/SW_GPS/{device_id}/user/*`.
+- `db/daemon.py` subscribes to `/SW_GPS/#`, periodically sends requests (batPropertyExtReq, batPropertyReq, batPositionReq), collects messages for a window, then writes decoded data to PostgreSQL.
+- Tables are created on demand per device.
+
+2) Default database location and credentials
+- Host: 127.0.0.1
+- Port: 5432
+- Database: batteries
+- User: troy
+- Password: s3rv3r5mx
+
+These defaults can be overridden with CLI flags when running `db/daemon.py`:
+--db-host, --db-port, --db-name, --db-user, --db-password
+
+Example:
+python db/daemon.py --db-host 127.0.0.1 --db-port 5432 --db-name batteries --db-user troy --db-password s3rv3r5mx --test-db
+
+3) Quick start
+- Verify PostgreSQL is running and accessible.
+- Test connection:
+  python db/daemon.py --test-db
+- Pre-create tables for a device (optional; daemon will auto-create when writing):
+  python db/daemon.py --create-tables 862317043590129
+- Run a capture session for one or more devices (210s window by default):
+  python db/daemon.py --broker mqtt-cloud-1.telco.co.zw --port 1883 \
+    --device 862317043590129 --capture-time 210 --request-interval 3
+
+During the session you will see:
+- OUTGOING MQTT PUBLISH lines for each request sent (with hex payload)
+- INCOMING MQTT MESSAGE lines for each message received (topic + hex)
+After the window, the script writes to PostgreSQL and prints exactly what it stored.
+
+4) How data is written (schema)
+Per device, tables are created with names that include the sanitized device ID:
+- pos_{device}: GPS/position points
+  columns: time (timestamptz), lat, lon, direction, sats_total, sats_gps, sats_beidou, hemisphere
+- status_{device}: electrical status snapshot
+  columns: time, current_amps, current_type, soc_percent, total_voltage_mv, remaining_capacity_ah, total_capacity_ah, loop_cycles, status_text
+- temps_{device}: temperatures
+  columns: time, bms_temps_c (int[]), cell_temps_c (int[])
+- cells_{device}: per-cell voltages
+  columns: time, cell_voltages_mv (int[])
+- net_{device}: network stats
+  columns: time, rssi, rsrp, rsrq, snr, network_type
+- info_{device}: device identification (single latest row)
+  columns: product_sn, gps_sn, gps_imsi, gps_imei, gps_sw, gps_hw, bms_sn, bms_sw, bms_hw
+
+Notes:
+- Table creation happens automatically before inserts.
+- Inserts currently commit per table write.
+- The script prints “STORED ...” blocks summarizing exactly what was inserted.
+
+5) Connecting with psql or external tools
+- psql:
+  PGPASSWORD=s3rv3r5mx psql \
+    -h 127.0.0.1 -p 5432 -U troy -d batteries
+
+- Connection URI (generic):
+  postgresql://troy:s3rv3r5mx@127.0.0.1:5432/batteries
+
+- psycopg2 DSN example (what daemon uses under the hood):
+  host=127.0.0.1 port=5432 dbname=batteries user=troy password=s3rv3r5mx
+
+6) MQTT side (for context)
+- Subscriptions: `/SW_GPS/#`
+- Active requests per device (every N seconds):
+  - `/SW_GPS/{device}/user/batPropertyExtReq` (header only)
+  - `/SW_GPS/{device}/user/batPropertyReq` (header only)
+  - `/SW_GPS/{device}/user/batPositionReq` (header only)
+- Responses handled:
+  - `batPropertyExtRsp` / `batPropertyExtRprt` → info_{device}
+  - `batPropertyRprt` → status/temps/cells/net tables
+  - `batPositonRprt` → pos_{device}
+
+7) Configuration flags (selected)
+- --broker, --port: MQTT endpoint
+- --capture-time: collection window (seconds)
+- --request-interval: delay between request cycles (seconds)
+- --device <id>: one or more device IDs to actively request
+- --verbose: more logging
+- --test-db: just test DB connection and exit
+- --create-tables <device>: create per-device tables and exit
+
+8) Security and best practices
+- Change the default DB password for production.
+- Prefer environment variables or a .env file; override with CLI flags.
+- Restrict DB user privileges to the `batteries` database if possible.
+- Consider TLS/SSL for remote DB connections.
+
+9) Troubleshooting
+- Connection refused:
+  - Is PostgreSQL running (`systemctl status postgresql`)?
+  - Is it listening on 127.0.0.1:5432 (check `postgresql.conf`)?
+- Authentication failed:
+  - Verify user/password and `pg_hba.conf` rules.
+- Permissions:
+  - Ensure the DB user can CREATE/INSERT in `batteries`.
+- MQTT but no DB writes:
+  - Check logs for INCOMING messages. If none, verify broker, topic, and device ID.
+  - Extend `--capture-time` and confirm requests are being sent.
+
+10) Useful queries (examples)
+- List device tables:
+  SELECT tablename FROM pg_tables WHERE schemaname='public' AND (tablename LIKE 'pos_%' OR tablename LIKE 'status_%');
+- Latest status for a device:
+  SELECT * FROM status_862317043590129 ORDER BY time DESC LIMIT 1;
+- Latest positions:
+  SELECT time, lat, lon, sats_total FROM pos_862317043590129 ORDER BY time DESC LIMIT 50;
+
+If anything doesn’t match your environment, run `python db/daemon.py --help` and override the defaults with flags.
+
