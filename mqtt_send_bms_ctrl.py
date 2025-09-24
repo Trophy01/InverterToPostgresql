@@ -9,7 +9,45 @@ from typing import Optional
 
 import paho.mqtt.client as mqtt
 
-from decoder_full import decode_bms_control, decode_payload_bytes
+# Inlined decoder functions
+def decode_payload_bytes(msg_payload: bytes) -> bytes:
+	"""Decode payload bytes from various formats"""
+	try:
+		txt = msg_payload.decode('utf-8')
+		if txt.strip().startswith('{'):
+			obj = json.loads(txt)
+			hex_str = obj.get('payload', '').strip()
+			return bytes.fromhex(hex_str) if hex_str else msg_payload
+		else:
+			return bytes.fromhex(txt.strip())
+	except Exception:
+		return msg_payload
+
+def decode_bms_control(payload_bytes: bytes) -> dict:
+	"""Minimal BMS control response decoder"""
+	try:
+		if len(payload_bytes) < 6:
+			return {'error': 'payload too short'}
+		# Parse header
+		start_code, proto_ver, seq, txn = struct.unpack('!H B H B', payload_bytes[:6])
+		header = {
+			'start_code': start_code,
+			'protocol_version': proto_ver,
+			'sequence_number': seq,
+			'transaction_id': txn,
+			'valid': (start_code == START_CODE and proto_ver == PROTOCOL_VERSION)
+		}
+		# Parse body if present
+		body = payload_bytes[6:] if len(payload_bytes) > 6 else b''
+		result = {'header': header}
+		if body:
+			result['body_hex'] = body.hex()
+			if len(body) >= 2:
+				result['control_type'] = body[0]
+				result['control_value'] = body[1]
+		return result
+	except Exception as e:
+		return {'error': str(e)}
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

@@ -22,6 +22,10 @@ import paho.mqtt.client as mqtt
 import psycopg2
 import struct
 
+# Import the definitive GPS decoder from the main Gps_decoder.py
+sys.path.append('/home/trophy/BatteryMonitoring2')
+from Gps_decoder import DefinitiveGPSDecoder
+
 
 # --- Minimal shared config/data layer (standalone) ---
 
@@ -185,168 +189,6 @@ class InlineDecoder:
             'valid': start_code == InlineDecoder.START_CODE and proto_ver == InlineDecoder.PROTOCOL_VERSION,
         }
 
-    class AdvancedGPSDecoder:
-        HARARE_LAT = -17.742873572292066
-        HARARE_LON = 31.075731885036568
-        @staticmethod
-        def bcd_to_nibbles(b: bytes) -> List[int]:
-            digits: List[int] = []
-            for x in b:
-                digits.append((x >> 4) & 0x0F)
-                digits.append(x & 0x0F)
-            return digits
-        @staticmethod
-        def nibbles_to_int(digs: List[int]) -> int:
-            return int(''.join(str(int(d)) for d in digs)) if digs else 0
-        @staticmethod
-        def bcd_to_int(bcd_bytes: bytes) -> int:
-            result = 0
-            for byte in bcd_bytes:
-                high = (byte >> 4) & 0x0F
-                low = byte & 0x0F
-                result = result * 100 + high * 10 + low
-            return result
-        @classmethod
-        def decode_latitude_harare(cls, lat_bytes: bytes) -> Tuple[float, str]:
-            methods: List[Tuple[str, float]] = []
-            try:
-                bcd_val = cls.bcd_to_int(lat_bytes) / 10000
-                methods.append(("BCD direct", bcd_val))
-            except Exception:
-                pass
-            try:
-                nibbles = cls.bcd_to_nibbles(lat_bytes)
-                swapped = nibbles[1:] + [nibbles[0]] if len(nibbles) > 0 else []
-                if swapped:
-                    val = cls.nibbles_to_int(swapped) / 10000
-                    methods.append(("Nibble swap", val))
-            except Exception:
-                pass
-            try:
-                raw_int = int.from_bytes(lat_bytes, 'big')
-                extreme_val = cls.HARARE_LAT + (raw_int % 10000) / 100000000
-                methods.append(("Extreme precision", extreme_val))
-            except Exception:
-                pass
-            if methods:
-                best = min(methods, key=lambda x: abs(x[1] - cls.HARARE_LAT))
-                return best[1], best[0]
-            return 0.0, 'No valid method'
-        @classmethod
-        def decode_longitude_harare(cls, lon_bytes: bytes) -> Tuple[float, str]:
-            methods: List[Tuple[str, float]] = []
-            try:
-                bcd_val = cls.bcd_to_int(lon_bytes) / 10000
-                methods.append(("BCD direct", bcd_val))
-            except Exception:
-                pass
-            try:
-                nibbles = cls.bcd_to_nibbles(lon_bytes)
-                swapped = nibbles[1:] + [nibbles[0]] if len(nibbles) > 0 else []
-                if swapped:
-                    val = cls.nibbles_to_int(swapped) / 10000
-                    methods.append(("Nibble swap", val))
-            except Exception:
-                pass
-            try:
-                raw_int = int.from_bytes(lon_bytes, 'big')
-                extreme_val = cls.HARARE_LON + (raw_int % 10000) / 100000000
-                methods.append(("Extreme precision", extreme_val))
-            except Exception:
-                pass
-            if methods:
-                best = min(methods, key=lambda x: abs(x[1] - cls.HARARE_LON))
-                return best[1], best[0]
-            return 0.0, 'No valid method'
-        @classmethod
-        def decode_timestamp_fixed(cls, date_bytes: bytes, time_bytes: bytes) -> Tuple[str, str]:
-            def swap_nibbles(x: int) -> int:
-                return ((x & 0x0F) << 4) | ((x & 0xF0) >> 4)
-            def permutations3(b: bytes):
-                a, b0, c = b[0], b[1], b[2]
-                return [
-                    ("abc", b),
-                    ("acb", bytes([a, c, b0])),
-                    ("bac", bytes([b0, a, c])),
-                    ("bca", bytes([b0, c, a])),
-                    ("cab", bytes([c, a, b0])),
-                    ("cba", bytes([c, b0, a])),
-                ]
-            date_methods: List[Tuple[str, int, int, int]] = []
-            time_methods: List[Tuple[str, int, int, int]] = []
-            for name, perm in permutations3(date_bytes):
-                for swap_name, swap_fn in [("", lambda x: x), ("swap", swap_nibbles)]:
-                    try:
-                        test_bytes = bytes([swap_fn(x) for x in perm])
-                        nibbles = InlineDecoder.AdvancedGPSDecoder.bcd_to_nibbles(test_bytes)
-                        if len(nibbles) >= 6:
-                            day = InlineDecoder.AdvancedGPSDecoder.nibbles_to_int(nibbles[0:2])
-                            month = InlineDecoder.AdvancedGPSDecoder.nibbles_to_int(nibbles[2:4])
-                            year = InlineDecoder.AdvancedGPSDecoder.nibbles_to_int(nibbles[4:6])
-                            if 1 <= day <= 31 and 1 <= month <= 12:
-                                date_methods.append((f"date:{name}:{swap_name}", 2000 + year, month, day))
-                    except Exception:
-                        pass
-            for name, perm in permutations3(time_bytes):
-                for swap_name, swap_fn in [("", lambda x: x), ("swap", swap_nibbles)]:
-                    try:
-                        test_bytes = bytes([swap_fn(x) for x in perm])
-                        nibbles = InlineDecoder.AdvancedGPSDecoder.bcd_to_nibbles(test_bytes)
-                        if len(nibbles) >= 6:
-                            hour = InlineDecoder.AdvancedGPSDecoder.nibbles_to_int(nibbles[0:2])
-                            minute = InlineDecoder.AdvancedGPSDecoder.nibbles_to_int(nibbles[2:4])
-                            second = InlineDecoder.AdvancedGPSDecoder.nibbles_to_int(nibbles[4:6])
-                            if 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59:
-                                time_methods.append((f"time:{name}:{swap_name}", hour, minute, second))
-                    except Exception:
-                        pass
-            if date_methods:
-                year, month, day = date_methods[0][1:4]
-            else:
-                now = datetime.now()
-                year, month, day = now.year, now.month, now.day
-            if time_methods:
-                now = datetime.now()
-                current_minutes = now.hour * 60 + now.minute
-                pick = min(time_methods, key=lambda t: abs(t[1]*60 + t[2] - current_minutes))
-                hour, minute, second = pick[1:4]
-            else:
-                hour, minute, second = 0, 0, 0
-            try:
-                naive = datetime(year, month, day, hour, minute, second)
-                return naive.strftime('%Y-%m-%d'), naive.strftime('%H:%M:%S')
-            except Exception:
-                return f"{year:04d}-{month:02d}-{day:02d}", f"{hour:02d}:{minute:02d}:{second:02d}"
-        @classmethod
-        def decode_sat_speed_direction(cls, tail_bytes: bytes) -> Tuple[int, int, int, float, float]:
-            beidou_sat = 0
-            gps_sat = 0
-            speed_kmh = 0.0
-            direction_deg = 0.0
-            if len(tail_bytes) >= 2:
-                try:
-                    nibbles = cls.bcd_to_nibbles(tail_bytes[0:2])
-                    if len(nibbles) >= 4:
-                        beidou_sat = nibbles[0] if nibbles[0] <= 9 else 0
-                        gps_sat = nibbles[1] if nibbles[1] <= 9 else 0
-                except Exception:
-                    pass
-            if len(tail_bytes) >= 5:
-                try:
-                    speed_n = cls.bcd_to_nibbles(tail_bytes[2:5])
-                    if len(speed_n) >= 6:
-                        speed_kmh = cls.nibbles_to_int(speed_n[:4]) + cls.nibbles_to_int(speed_n[4:6]) / 100.0
-                except Exception:
-                    pass
-            if len(tail_bytes) >= 8:
-                try:
-                    dir_n = cls.bcd_to_nibbles(tail_bytes[5:8])
-                    if len(dir_n) >= 5:
-                        direction_deg = cls.nibbles_to_int(dir_n[:4]) + cls.nibbles_to_int(dir_n[4:5]) / 10.0
-                except Exception:
-                    pass
-            satellites = beidou_sat + gps_sat
-            return beidou_sat, gps_sat, satellites, speed_kmh, direction_deg
 
     @staticmethod
     def decode_battery_position(payload: bytes, device_id: str) -> Optional[Dict[str, Any]]:
@@ -355,46 +197,83 @@ class InlineDecoder:
             body = payload[InlineDecoder.HEADER_SIZE:]
             if not body:
                 return {'header': header, 'position_count': 0, 'positions': [], 'raw_payload_hex': payload.hex()}
-            total_len = body[0] if len(body) >= 1 else 0
-            if total_len == 0 or len(body) < total_len + 1:
-                return {'header': header, 'position_count': 0, 'positions': [], 'raw_payload_hex': payload.hex()}
-            i = 1
-            if i >= len(body):
-                return {'header': header, 'position_count': 0, 'positions': [], 'raw_payload_hex': payload.hex()}
-            rec_len = body[i]
-            if rec_len == 21 and i + 1 + 21 <= len(body):
-                rec = body[i+1:i+1+21]
+            
+            # Use the imported DefinitiveGPSDecoder from Gps_decoder.py
+            gps_decoder = DefinitiveGPSDecoder()
+            
+            # Try protocol-specific parsing first
+            proto_result = gps_decoder.parse_position_info_protocol(payload)
+            if proto_result:
+                # Use protocol result
+                latitude = proto_result['lat']
+                longitude = proto_result['lon']
+                time_data = proto_result['time']
+                hour = time_data[0]
+                minute = time_data[1]
+                second = time_data[2] if len(time_data) > 2 else 0
+                beidou_sat = proto_result.get('bd_sats', 0)
+                gps_sat = proto_result.get('gps_sats', 0)
+                speed_kmh = proto_result.get('speed_kmh', 0.0)
+                direction_deg = proto_result.get('direction_deg', 0.0)
+                date_data = proto_result.get('date', (1, 1, 24))
+                day, month, year = date_data
+                
+                # Create timestamp string
+                timestamp = f"{2000+year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}"
             else:
-                rec = None
-                scan = i
-                end = 1 + total_len
-                while scan < end and scan < len(body):
-                    if scan + 1 <= len(body):
-                        l = body[scan]
-                        if l == 21 and scan + 1 + 21 <= len(body):
-                            rec = body[scan+1:scan+1+21]
-                            break
-                        scan += 1 + l if l > 0 else 1
-                    else:
-                        break
-                if rec is None:
+                # Fallback to coordinate scanning methods
+                coord_result = gps_decoder.decode_coordinates_search(payload)
+                if coord_result is None:
+                    coord_result = gps_decoder.decode_coordinates_bcd_scan(payload)
+                
+                if coord_result is None:
                     return {'header': header, 'position_count': 0, 'positions': [], 'raw_payload_hex': payload.hex()}
-            raw_lat = rec[0:3]
-            raw_lon = rec[3:6]
-            gps = InlineDecoder.AdvancedGPSDecoder()
-            lat_val, _ = gps.decode_latitude_harare(raw_lat)
-            lon_val, _ = gps.decode_longitude_harare(raw_lon)
-            latitude = -abs(lat_val)
-            longitude = abs(lon_val)
-            date_bytes = rec[6:9]
-            time_bytes = rec[9:12]
-            date_str, time_str = gps.decode_timestamp_fixed(date_bytes, time_bytes)
-            tail_bytes = rec[12:21]
-            beidou_sat, gps_sat, satellites, speed_kmh, direction_deg = gps.decode_sat_speed_direction(tail_bytes)
+                
+                latitude = coord_result['latitude']
+                longitude = coord_result['longitude']
+                
+                # Try to decode time
+                time_result = gps_decoder.decode_time_search(payload)
+                if time_result:
+                    hour = time_result['hour']
+                    minute = time_result['minute']
+                    second = 0
+                else:
+                    # Use current time as fallback
+                    now = datetime.now()
+                    hour = now.hour
+                    minute = now.minute
+                    second = now.second
+                
+                # Default values for other fields
+                beidou_sat = 0
+                gps_sat = 0
+                speed_kmh = 0.0
+                direction_deg = 0.0
+                now = datetime.now()
+                timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Apply hemisphere corrections based on flags if available
+            if proto_result and 'flags' in proto_result:
+                flags = proto_result['flags']
+                # Treat only bit7 (0x80) as West; others ignored
+                west = bool(flags & 0x80)
+                south = bool(flags & 0x08 or flags & 0x02 or flags & 0x01)
+                # Latitude: S -> negative
+                latitude = -abs(latitude) if south else abs(latitude)
+                # Longitude: only set negative if W bit; otherwise force positive (East)
+                longitude = -abs(longitude) if west else abs(longitude)
+            else:
+                # Default hemisphere handling
+                latitude = -abs(latitude)  # Assume South
+                longitude = abs(longitude)  # Assume East
+            
+            satellites = beidou_sat + gps_sat
+            
             positions = [{
                 'latitude': latitude,
                 'longitude': longitude,
-                'timestamp': f"{date_str} {time_str}",
+                'timestamp': timestamp,
                 'timestamp_utc': '',
                 'beidou_satellites': beidou_sat,
                 'gps_satellites': gps_sat,
@@ -411,7 +290,7 @@ class InlineDecoder:
 
 
 class PositionToDB:
-    def __init__(self, device_id: Optional[str], db_cfg: DatabaseConfig, app_cfg: AppConfig, all_mode: bool = False, silent: bool = False):
+    def __init__(self, device_id: Optional[str], db_cfg: DatabaseConfig, app_cfg: AppConfig, all_mode: bool = False, silent: bool = False, bms_ctrl: Optional[Tuple[int, int]] = None):
         self.device_id = device_id
         self.all_mode = all_mode
         self.silent = silent
@@ -428,11 +307,34 @@ class PositionToDB:
         self._seq = 0
         self._txn = 0
         self._seen_devices = set()
+        self._bms_ctrl = bms_ctrl
 
     def next_header(self) -> bytes:
         self._seq = (self._seq + 1) & 0xFFFF
         self._txn = (self._txn + 1) & 0xFF
         return self.decoder.build_header(self._seq, self._txn)
+
+    def send_ext(self, dev: str):
+        hdr = self.next_header()
+        topic = f"/SW_GPS/{dev}/user/batPropertyExtReq"
+        self.client.publish(topic, hdr, qos=1, retain=False)
+        if not self.silent:
+            print(f"📤 Pinged ext -> {dev}")
+
+    def send_wake(self, dev: str):
+        hdr = self.next_header()
+        topic = f"/SW_GPS/{dev}/user/batPropertyReq"
+        self.client.publish(topic, hdr, qos=1, retain=False)
+        if not self.silent:
+            print(f"📤 Pinged wake -> {dev}")
+
+    def send_ctrl(self, dev: str, ctrl_type: int, value: int):
+        hdr = self.next_header()
+        body = bytes([ctrl_type & 0xFF, value & 0xFF])
+        topic = f"/SW_GPS/{dev}/user/bmsCtrReq"
+        self.client.publish(topic, hdr + body, qos=1, retain=False)
+        if not self.silent:
+            print(f"📤 Sent ctrl -> {dev} type={ctrl_type} value={value}")
 
     def on_connect(self, client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
@@ -522,6 +424,18 @@ class PositionToDB:
                 for dev in targets:
                     if not dev:
                         continue
+                    # Send additional nudges similar to gps_analyzer
+                    try:
+                        self.send_ext(dev)
+                        time.sleep(0.2)
+                        self.send_wake(dev)
+                        time.sleep(0.2)
+                        if self._bms_ctrl is not None:
+                            self.send_ctrl(dev, self._bms_ctrl[0], self._bms_ctrl[1])
+                            time.sleep(0.2)
+                    except Exception as e:
+                        logging.debug(f"Publish ext/wake/ctrl error for {dev}: {e}")
+                    # Also ping position requests variants
                     hdr = self.next_header()
                     for req in ("batPositionReq", "batPositonReq"):
                         topic = f"/SW_GPS/{dev}/user/{req}"
@@ -551,13 +465,15 @@ def main() -> int:
     parser.add_argument('--db-user', default='troy', help='DB user')
     parser.add_argument('--db-password', default='s3rv3r5mx', help='DB password')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
+    parser.add_argument('--bms-ctrl', nargs=2, metavar=("TYPE", "VALUE"), help='Optional bmsCtrReq TYPE 1..3 VALUE 0/1')
     args = parser.parse_args()
 
     db_cfg = DatabaseConfig(host=args.db_host, port=args.db_port, database=args.db_name, user=args.db_user, password=args.db_password)
     app_cfg = AppConfig(verbose=args.verbose, broker=args.broker, port=args.port)
     # If --all, ignore device filter for subscription; we'll subscribe wildcard and ping seen devices
     device_id = None if args.all else args.device
-    app = PositionToDB(device_id, db_cfg, app_cfg, all_mode=args.all, silent=args.S)
+    bms_ctrl_tuple: Optional[Tuple[int, int]] = (int(args.bms_ctrl[0]), int(args.bms_ctrl[1])) if args.bms_ctrl else None
+    app = PositionToDB(device_id, db_cfg, app_cfg, all_mode=args.all, silent=args.S, bms_ctrl=bms_ctrl_tuple)
     return app.run()
 
 

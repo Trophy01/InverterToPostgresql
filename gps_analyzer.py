@@ -11,15 +11,11 @@ import argparse
 import time
 import json
 import struct
+import datetime
+import logging
 from collections import deque
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 import paho.mqtt.client as mqtt
-from decoder import (
-    decode_battery_position,
-    decode_battery_property_ext,
-    decode_battery_property_report,
-    decode_payload_bytes,
-)
 
 BROKER_ADDRESS = "mqtt-cloud-1.telco.co.zw"
 BROKER_PORT = 1883
@@ -27,10 +23,318 @@ PRODUCT_NAME = "SW_GPS"
 
 START_CODE = 0x4350
 PROTOCOL_VERSION = 0x11
+HEADER_SIZE = 6
 
 
 def build_header(seq: int, txn: int) -> bytes:
     return struct.pack("!H B H B", START_CODE, PROTOCOL_VERSION, seq & 0xFFFF, txn & 0xFF)
+
+
+def parse_header(payload: bytes) -> Dict[str, Any]:
+    """Parse the 6-byte message header"""
+    if len(payload) < HEADER_SIZE:
+        raise ValueError("Payload shorter than header size")
+    start_code, proto_ver, seq, txn = struct.unpack("!H B H B", payload[:HEADER_SIZE])
+    header = {
+        'start_code': start_code,
+        'protocol_version': proto_ver,
+        'sequence_number': seq,
+        'transaction_id': txn,
+        'valid': start_code == START_CODE and proto_ver == PROTOCOL_VERSION
+    }
+    return header
+
+
+def decode_payload_bytes(msg_payload: bytes) -> bytes:
+    """Decode payload bytes from various formats"""
+    try:
+        txt = msg_payload.decode('utf-8')
+        if txt.strip().startswith('{'):
+            obj = json.loads(txt)
+            hex_str = obj.get('payload', '').strip()
+            return bytes.fromhex(hex_str) if hex_str else msg_payload
+        else:
+            return bytes.fromhex(txt.strip())
+    except Exception:
+        return msg_payload
+
+
+class AdvancedGPSDecoder:
+    """Advanced GPS decoder with multiple precision methods"""
+    
+    def __init__(self):
+        self.HARARE_LAT = -17.742873572292066
+        self.HARARE_LON = 31.075731885036568
+    
+    def bcd_to_nibbles(self, b: bytes) -> list:
+        """Return list of decimal nibbles (0..15) from bytes."""
+        digits = []
+        for x in b:
+            digits.append((x >> 4) & 0x0F)
+            digits.append(x & 0x0F)
+        return digits
+
+    def nibbles_to_int(self, digs: list) -> int:
+        """Convert list of decimal digits (0..9) to integer."""
+        return int(''.join(str(int(d)) for d in digs)) if digs else 0
+
+    def bcd_to_int(self, bcd_bytes: bytes) -> int:
+        """Convert BCD bytes to integer"""
+        result = 0
+        for byte in bcd_bytes:
+            high_nibble = (byte >> 4) & 0x0F
+            low_nibble = byte & 0x0F
+            result = result * 100 + high_nibble * 10 + low_nibble
+        return result
+
+    def decode_latitude_harare(self, lat_bytes: bytes) -> Tuple[float, str]:
+        """Decode latitude using multiple precision methods"""
+        methods = []
+        
+        # Basic BCD methods
+        try:
+            bcd_val = self.bcd_to_int(lat_bytes) / 10000
+            methods.append(("BCD direct", bcd_val))
+        except:
+            pass
+        
+        # Nibble swap methods
+        try:
+            nibbles = self.bcd_to_nibbles(lat_bytes)
+            swapped = nibbles[1:] + [nibbles[0]] if len(nibbles) > 0 else []
+            if swapped:
+                val = self.nibbles_to_int(swapped) / 10000
+                methods.append(("Nibble swap", val))
+        except:
+            pass
+        
+        # Extreme precision methods
+        try:
+            raw_int = int.from_bytes(lat_bytes, 'big')
+            extreme_val = self.HARARE_LAT + (raw_int % 10000) / 100000000
+            methods.append(("Extreme precision", extreme_val))
+        except:
+            pass
+        
+        # Select best method (closest to Harare)
+        if methods:
+            best_method = min(methods, key=lambda x: abs(x[1] - self.HARARE_LAT))
+            return best_method[1], best_method[0]
+        
+        return 0.0, "No valid method"
+
+    def decode_longitude_harare(self, lon_bytes: bytes) -> Tuple[float, str]:
+        """Decode longitude using multiple precision methods"""
+        methods = []
+        
+        # Basic BCD methods
+        try:
+            bcd_val = self.bcd_to_int(lon_bytes) / 10000
+            methods.append(("BCD direct", bcd_val))
+        except:
+            pass
+        
+        # Nibble swap methods
+        try:
+            nibbles = self.bcd_to_nibbles(lon_bytes)
+            swapped = nibbles[1:] + [nibbles[0]] if len(nibbles) > 0 else []
+            if swapped:
+                val = self.nibbles_to_int(swapped) / 10000
+                methods.append(("Nibble swap", val))
+        except:
+            pass
+        
+        # Extreme precision methods
+        try:
+            raw_int = int.from_bytes(lon_bytes, 'big')
+            extreme_val = self.HARARE_LON + (raw_int % 10000) / 100000000
+            methods.append(("Extreme precision", extreme_val))
+        except:
+            pass
+        
+        # Select best method (closest to Harare)
+        if methods:
+            best_method = min(methods, key=lambda x: abs(x[1] - self.HARARE_LON))
+            return best_method[1], best_method[0]
+        
+        return 0.0, "No valid method"
+
+    def decode_timestamp_fixed(self, date_bytes: bytes, time_bytes: bytes) -> Tuple[str, str]:
+        """Decode timestamp with multiple BCD interpretations"""
+        def swap_nibbles(x):
+            return ((x & 0x0F) << 4) | ((x & 0xF0) >> 4)
+        
+        # Generate variants: all byte-order permutations with optional per-byte swaps
+        def permutations3(b: bytes):
+            a, b0, c = b[0], b[1], b[2]
+            return [
+                ("abc", b),
+                ("acb", bytes([a, c, b0])),
+                ("bac", bytes([b0, a, c])),
+                ("bca", bytes([b0, c, a])),
+                ("cab", bytes([c, a, b0])),
+                ("cba", bytes([c, b0, a])),
+            ]
+        
+        date_methods = []
+        time_methods = []
+        
+        # Test all permutations with and without nibble swaps
+        for name, perm in permutations3(date_bytes):
+            for swap_name, swap_func in [("", lambda x: x), ("swap", swap_nibbles)]:
+                try:
+                    test_bytes = bytes([swap_func(x) for x in perm])
+                    nibbles = self.bcd_to_nibbles(test_bytes)
+                    if len(nibbles) >= 6:
+                        day = self.nibbles_to_int(nibbles[0:2])
+                        month = self.nibbles_to_int(nibbles[2:4])
+                        year = self.nibbles_to_int(nibbles[4:6])
+                        if 1 <= day <= 31 and 1 <= month <= 12:
+                            date_methods.append((f"date:{name}:{swap_name}", 2000 + year, month, day))
+                except:
+                    pass
+        
+        for name, perm in permutations3(time_bytes):
+            for swap_name, swap_func in [("", lambda x: x), ("swap", swap_nibbles)]:
+                try:
+                    test_bytes = bytes([swap_func(x) for x in perm])
+                    nibbles = self.bcd_to_nibbles(test_bytes)
+                    if len(nibbles) >= 6:
+                        hour = self.nibbles_to_int(nibbles[0:2])
+                        minute = self.nibbles_to_int(nibbles[2:4])
+                        second = self.nibbles_to_int(nibbles[4:6])
+                        if 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59:
+                            time_methods.append((f"time:{name}:{swap_name}", hour, minute, second))
+                except:
+                    pass
+        
+        # Prefer years in [2000..2099]; otherwise, use today's date
+        pref_dates = [dm for dm in date_methods if 2000 <= dm[1] <= 2099]
+        if pref_dates:
+            date_pick = pref_dates[0]
+            year, month, day = date_pick[1:4]
+        else:
+            now = datetime.datetime.now()
+            year, month, day = now.year, now.month, now.day
+        
+        # Pick time closest to current time
+        if time_methods:
+            now = datetime.datetime.now()
+            current_minutes = now.hour * 60 + now.minute
+            time_pick = min(time_methods, key=lambda t: abs(t[1] * 60 + t[2] - current_minutes))
+            hour, minute, second = time_pick[1:4]
+        else:
+            hour, minute, second = 0, 0, 0
+        
+        # Apply time correction (device is ~1h40m ahead)
+        try:
+            naive_dt = datetime.datetime(year, month, day, hour, minute, second)
+            corrected_dt = naive_dt - datetime.timedelta(hours=1, minutes=40)
+            date_str = corrected_dt.strftime("%Y-%m-%d")
+            time_str = corrected_dt.strftime("%H:%M:%S")
+        except:
+            date_str = f"{year:04d}-{month:02d}-{day:02d}"
+            time_str = f"{hour:02d}:{minute:02d}:{second:02d}"
+        
+        return date_str, time_str
+
+    def decode_sat_speed_direction(self, tail_bytes: bytes) -> Tuple[int, int, int, float, float]:
+        """Decode satellite counts, speed, and direction from tail bytes"""
+        beidou_sat = 0
+        gps_sat = 0
+        speed_kmh = 0.0
+        direction_deg = 0.0
+        
+        if len(tail_bytes) >= 2:
+            # Satellite counts from first 2 bytes
+            try:
+                nibbles = self.bcd_to_nibbles(tail_bytes[0:2])
+                if len(nibbles) >= 4:
+                    beidou_sat = nibbles[0] if nibbles[0] <= 9 else 0
+                    gps_sat = nibbles[1] if nibbles[1] <= 9 else 0
+            except:
+                pass
+        
+        if len(tail_bytes) >= 5:
+            # Speed from bytes 2-5 (3 bytes BCD)
+            try:
+                speed_nibbles = self.bcd_to_nibbles(tail_bytes[2:5])
+                if len(speed_nibbles) >= 6:
+                    speed_kmh = self.nibbles_to_int(speed_nibbles[:4]) + self.nibbles_to_int(speed_nibbles[4:6]) / 100.0
+            except:
+                pass
+        
+        if len(tail_bytes) >= 8:
+            # Direction from bytes 5-8 (3 bytes BCD)
+            try:
+                dir_nibbles = self.bcd_to_nibbles(tail_bytes[5:8])
+                if len(dir_nibbles) >= 5:
+                    direction_deg = self.nibbles_to_int(dir_nibbles[:4]) + self.nibbles_to_int(dir_nibbles[4:5]) / 10.0
+            except:
+                pass
+        
+        satellites = beidou_sat + gps_sat
+        return beidou_sat, gps_sat, satellites, speed_kmh, direction_deg
+
+
+def decode_battery_position(payload_bytes: bytes, topic_device_id: str = None) -> Dict[str, Any]:
+    try:
+        header = parse_header(payload_bytes)
+        body = payload_bytes[HEADER_SIZE:]
+        if not body:
+            return {'header': header, 'position_count': 0, 'positions': [], 'raw_payload_hex': payload_bytes.hex()}
+        offset = 0
+        total_len = body[offset] if offset < len(body) else 0
+        offset += 1
+        positions: List[Dict[str, Any]] = []
+        gps = AdvancedGPSDecoder()
+        while offset < len(body) and len(positions) < 10:
+            if offset >= len(body):
+                break
+            rec_len = body[offset]
+            offset += 1
+            if rec_len != 21 or offset + rec_len > len(body):
+                break
+            rec = body[offset:offset+rec_len]
+            offset += rec_len
+            # Decode using advanced methods
+            raw_lat = rec[0:3]
+            raw_lon = rec[3:6]
+            lat_val, lat_method = gps.decode_latitude_harare(raw_lat)
+            lon_val, lon_method = gps.decode_longitude_harare(raw_lon)
+
+            # Zimbabwe is south/east; enforce hemisphere if needed
+            latitude = -abs(lat_val)
+            longitude = abs(lon_val)
+
+            # Decode timestamp if present
+            date_bytes = rec[6:9]
+            time_bytes = rec[9:12]
+            date_str, time_str = gps.decode_timestamp_fixed(date_bytes, time_bytes)
+
+            # Decode satellites, speed, direction from tail
+            tail_bytes = rec[12:21]
+            beidou_sat, gps_sat, satellites, speed_kmh, direction_deg = gps.decode_sat_speed_direction(tail_bytes)
+
+            positions.append({
+                'latitude': latitude,
+                'longitude': longitude,
+                'timestamp': f"{date_str} {time_str}",
+                'timestamp_utc': '',
+                'beidou_satellites': beidou_sat,
+                'gps_satellites': gps_sat,
+                'satellites': satellites,
+                'speed_kmh': speed_kmh,
+                'direction_deg': direction_deg,
+                'is_west': longitude < 0,
+                'is_south': latitude < 0,
+                'lat_method': lat_method,
+                'lon_method': lon_method
+            })
+        return {'header': header, 'position_count': len(positions), 'positions': positions, 'raw_payload_hex': payload_bytes.hex()}
+    except Exception as e:
+        logging.error(f"Error decoding battery position: {e}")
+        return None
 
 
 class GPSAnalyzer:

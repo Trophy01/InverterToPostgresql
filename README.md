@@ -37,7 +37,7 @@ Install dependencies in a virtualenv (recommended):
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt  # if present, else: pip install paho-mqtt psycopg2-binary flask plotly
+pip   install paho-mqtt psycopg2-binary flask plotly
 ```
 
 ## Quick start
@@ -123,12 +123,47 @@ Options:
 - `--cycles N` and `--delay S` to control pacing
 - Subscribes to relevant response topics and logs incoming headers
 
-### Control commands
-`mqtt_send_bms_ctrl.py` can publish BMS control requests.
+### BMS Control Commands
+`mqtt_send_bms_ctrl.py` sends BMS control requests to manage battery charging, discharging, and static mode.
+
+**Usage:**
 ```bash
-python mqtt_send_bms_ctrl.py <device_id> <control_type> <value>
+python mqtt_send_bms_ctrl.py <device_id> <action>
 ```
-Refer to your protocol documentation for control types and values.
+
+**Available Actions:**
+- **Charging Control:**
+  - `allow_charging` - Enable battery charging
+  - `no_charging` - Disable battery charging
+
+- **Discharge Control:**
+  - `allow_discharge` - Enable battery discharging
+  - `no_discharge` - Disable battery discharging
+
+- **Static Mode Control:**
+  - `allow_static_mode` - Enable static mode
+  - `disallow_static_mode` - Disable static mode
+
+**Examples:**
+```bash
+# Enable charging on device 862317043589014
+python mqtt_send_bms_ctrl.py 862317043589014 allow_charging
+
+# Disable discharging on device 862317043589014
+python mqtt_send_bms_ctrl.py 862317043589014 no_discharge
+
+# Enable static mode on device 862317043589014
+python mqtt_send_bms_ctrl.py 862317043589014 allow_static_mode
+```
+
+**Response:**
+The script will:
+- Log the outgoing control request with hex payload
+- Wait for and log the BMS control response from the device
+- Display decoded response showing control type, value, and confirmation
+
+**Options:**
+- `--timeout N` - Set response timeout in seconds (default: 10)
 
 ## Querying the database
 Examples (psql):
