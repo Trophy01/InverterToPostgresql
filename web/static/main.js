@@ -9,7 +9,6 @@ const kCycles = document.getElementById('k-cycles');
 const kStatus = document.getElementById('k-status');
 
 let charts = {};
-let map, marker;
 
 async function fetchJSON(url){
   const r = await fetch(url);
@@ -101,16 +100,27 @@ async function refresh(){
   setKpi(sum);
   renderSeries(ser);
 
-  // Update map with latest coordinate from pos series
+  // Build Google Maps links for each valid position
   const pos = (ser.pos || []).filter(p => typeof p.lat === 'number' && typeof p.lon === 'number');
-  if(pos.length){
-    const last = pos[pos.length - 1];
-    updateMap(last.lat, last.lon);
+  const list = document.getElementById('pos-links-list');
+  if(list){
+    list.innerHTML = '';
+    for(const p of pos.slice(-8).reverse()){
+      let y = parseFloat(p.lat), x = parseFloat(p.lon);
+      if (Math.abs(y) > 90 && Math.abs(x) <= 90) { const t=y; y=x; x=t; }
+      while (x > 180) x -= 360; while (x < -180) x += 360; if (y > 90) y = 90; if (y < -90) y = -90;
+      const a = document.createElement('a');
+      a.className = 'pos-link';
+      a.href = `https://www.google.com/maps?q=${y},${x}`;
+      a.target = '_blank'; a.rel = 'noopener';
+      const when = new Date(p.t).toLocaleTimeString();
+      a.textContent = `View on Maps • ${when}`;
+      list.appendChild(a);
+    }
   }
 }
 
 (async function init(){
-  initMap();
   await loadDevices();
   await refresh();
   btnRefresh.addEventListener('click', refresh);
@@ -119,38 +129,6 @@ async function refresh(){
   setInterval(refresh, 15000);
 })();
 
-function initMap(){
-  map = L.map('map');
-  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  });
-  tiles.addTo(map);
-  map.setView([0,0], 2);
-  setTimeout(()=>map.invalidateSize(), 150);
-  window.addEventListener('resize', ()=>map && map.invalidateSize());
-}
-
-function updateMap(lat, lon){
-  if(!map) return;
-  let y = parseFloat(lat);
-  let x = parseFloat(lon);
-  if(!isFinite(y) || !isFinite(x)) return;
-  // If lat looks out of bounds and lon in bounds, assume swapped
-  if (Math.abs(y) > 90 && Math.abs(x) <= 90) {
-    const tmp = y; y = x; x = tmp;
-  }
-  // Normalize longitude to [-180,180]
-  while (x > 180) x -= 360;
-  while (x < -180) x += 360;
-  // Clamp latitude
-  if (y > 90) y = 90; if (y < -90) y = -90;
-  if(!marker){
-    marker = L.marker([y, x]).addTo(map);
-  } else {
-    marker.setLatLng([y, x]);
-  }
-  map.setView([y, x], 13, { animate: true });
-  map.invalidateSize();
-}
+// Removed embedded Leaflet map; using external Google Maps links instead.
 
 

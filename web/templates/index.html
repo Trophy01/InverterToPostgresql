@@ -5,18 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Battery Monitor</title>
     <link rel="stylesheet" href="/static/style.css" />
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
+    <!-- Removed Leaflet CSS (no embedded map) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""
-    ></script>
+    <!-- Removed Leaflet JS (no embedded map) -->
   </head>
   <body>
     <header class="top">
@@ -54,8 +45,13 @@
         <div class="card"><h2>SOC / Voltage / Current</h2><div class="chart"><canvas id="c-status"></canvas></div></div>
         <div class="card"><h2>Temperatures</h2><div class="chart"><canvas id="c-temps"></canvas></div></div>
         <div class="card"><h2>Cell Voltages</h2><div class="chart"><canvas id="c-cells"></canvas></div></div>
-        <div class="card"><h2>Positions</h2><div class="chart"><canvas id="c-pos"></canvas></div></div>
-        <div class="card"><h2>Map</h2><div id="map"></div></div>
+        <div class="card"><h2>Positions</h2>
+          <div class="chart"><canvas id="c-pos"></canvas></div>
+          <div class="pos-links">
+            <div class="pos-links-header">Recent locations</div>
+            <div id="pos-links-list" class="pos-links-list"></div>
+          </div>
+        </div>
       </section>
     </main>
     <script src="/static/main.js"></script>
