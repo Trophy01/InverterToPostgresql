@@ -297,6 +297,36 @@ def series(device_id: str):
             out['cells'] = [{'t': t.isoformat(), 'mv': arr or []} for (t, arr) in cur.fetchall()]
             cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
             out['pos'] = [{'t': t.isoformat(), 'lat': lat, 'lon': lon, 'sats': sats, 'dir': direction} for (t, lat, lon, sats, direction) in cur.fetchall()]
+
+            # Fallback: if no recent data, return the last available N samples (historical)
+            try:
+                if not out['status']:
+                    cur.execute(f"SELECT time, soc_percent, total_voltage_mv, current_amps FROM status_{safe} ORDER BY time DESC LIMIT 200")
+                    rows = cur.fetchall()
+                    out['status'] = [{'t': t.isoformat(), 'soc': soc, 'v': v, 'i': i} for (t, soc, v, i) in reversed(rows)]
+            except Exception:
+                pass
+            try:
+                if not out['temps']:
+                    cur.execute(f"SELECT time, bms_temps_c, cell_temps_c FROM temps_{safe} ORDER BY time DESC LIMIT 200")
+                    rows = cur.fetchall()
+                    out['temps'] = [{'t': t.isoformat(), 'bms': b or [], 'cells': c or []} for (t, b, c) in reversed(rows)]
+            except Exception:
+                pass
+            try:
+                if not out['cells']:
+                    cur.execute(f"SELECT time, cell_voltages_mv FROM cells_{safe} ORDER BY time DESC LIMIT 200")
+                    rows = cur.fetchall()
+                    out['cells'] = [{'t': t.isoformat(), 'mv': arr or []} for (t, arr) in reversed(rows)]
+            except Exception:
+                pass
+            try:
+                if not out['pos']:
+                    cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe} ORDER BY time DESC LIMIT 200")
+                    rows = cur.fetchall()
+                    out['pos'] = [{'t': t.isoformat(), 'lat': lat, 'lon': lon, 'sats': sats, 'dir': direction} for (t, lat, lon, sats, direction) in reversed(rows)]
+            except Exception:
+                pass
     return jsonify(out)
 
 
