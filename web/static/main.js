@@ -7,6 +7,7 @@ const kV = document.getElementById('k-v');
 const kI = document.getElementById('k-i');
 const kCycles = document.getElementById('k-cycles');
 const kStatus = document.getElementById('k-status');
+const kTemp = document.getElementById('k-temp');
 
 let charts = {};
 
@@ -31,11 +32,17 @@ async function loadDevices(){
 
 function setKpi(summary){
   const s = summary.status || {};
-  kSOC.textContent = s.soc_percent != null ? (s.soc_percent.toFixed(1)+'%') : '–';
+  // Hero SOC emphasized
+  kSOC.textContent = s.soc_percent != null ? (Math.round(s.soc_percent)+'%') : '–';
   kV.textContent = s.total_voltage_mv != null ? (s.total_voltage_mv+' mV') : '–';
   kI.textContent = s.current_amps != null ? (s.current_amps.toFixed(1)+' A') : '–';
   kCycles.textContent = s.loop_cycles != null ? s.loop_cycles : '–';
   kStatus.textContent = s.status_text || '–';
+  // Show average temp if available
+  if (Array.isArray(s.temps_c) && s.temps_c.length){
+    const avg = s.temps_c.reduce((a,b)=>a+b,0)/s.temps_c.length;
+    kTemp.textContent = avg.toFixed(1)+' °C';
+  }
 }
 
 function lineChart(ctxId, labels, datasets){
