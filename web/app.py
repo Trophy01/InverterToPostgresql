@@ -248,6 +248,34 @@ def summary(device_id: str):
                     'time': r[0].isoformat(),
                     'rssi': r[1], 'rsrp': r[2], 'rsrq': r[3], 'snr': r[4], 'type': r[5]
                 }
+            # Include latest known position (time, lat, lon, sats, direction)
+            try:
+                cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe} ORDER BY time DESC LIMIT 1")
+                r = cur.fetchone()
+                if r:
+                    data['position'] = {
+                        'time': r[0].isoformat(),
+                        'lat': r[1],
+                        'lon': r[2],
+                        'sats_total': r[3],
+                        'direction': r[4],
+                    }
+            except Exception:
+                # Position table may not exist yet; ignore
+                pass
+
+    # Compute unified latest_time across categories (status, temps, network, position)
+    latest = None
+    for key in ('status', 'temps', 'network', 'position'):
+        t = data.get(key, {}).get('time') if isinstance(data.get(key), dict) else None
+        if t:
+            try:
+                dt = datetime.fromisoformat(t)
+                latest = dt if latest is None or dt > latest else latest
+            except Exception:
+                pass
+    if latest is not None:
+        data['latest_time'] = latest.isoformat()
     return jsonify(data)
 
 

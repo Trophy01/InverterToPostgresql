@@ -18,13 +18,7 @@
     <header class="top">
       <h1>Battery Monitor</h1>
       <div class="controls">
-        <label>Window</label>
-        <select id="window">
-          <option value="2">2h</option>
-          <option value="6" selected>6h</option>
-          <option value="12">12h</option>
-          <option value="24">24h</option>
-        </select>
+        <div id="last-update" class="user-info">Last update: –</div>
         <button id="refresh" class="btn btn-primary">Refresh</button>
         <div class="user-controls">
           <span class="user-info">Battery: {{ current_user.battery_id }}</span>

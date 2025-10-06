@@ -1,5 +1,5 @@
 const deviceSel = document.getElementById('device');
-const windowSel = document.getElementById('window');
+const lastUpdateEl = document.getElementById('last-update');
 const btnRefresh = document.getElementById('refresh');
 
 const kSOC = document.getElementById('k-soc');
@@ -18,6 +18,8 @@ async function fetchJSON(url){
 }
 
 async function loadDevices(){
+  // If there is no device selector on the page, fall back to DEFAULT_DEVICE
+  if(!deviceSel){ return; }
   const ids = await fetchJSON('/api/devices');
   deviceSel.innerHTML = '';
   for(const id of ids){
@@ -26,7 +28,9 @@ async function loadDevices(){
     deviceSel.appendChild(opt);
   }
   if(ids.length){
-    deviceSel.value = ids[0];
+    // Prefer current user's battery id if present
+    const def = window.DEFAULT_DEVICE;
+    deviceSel.value = ids.includes(def) ? def : ids[0];
   }
 }
 
@@ -106,14 +110,35 @@ function renderSeries(series){
 }
 
 async function refresh(){
-  const id = deviceSel.value;
+  // Resolve device id: prefer selector, else DEFAULT_DEVICE
+  const id = deviceSel && deviceSel.value ? deviceSel.value : (window.DEFAULT_DEVICE || '');
   if(!id) return;
-  const hours = windowSel.value;
+  // Fixed lookback window (e.g., 12 hours) now that selector is removed
+  const hours = 12;
   const [sum, ser] = await Promise.all([
     fetchJSON(`/api/summary/${id}`),
     fetchJSON(`/api/series/${id}?hours=${hours}`)
   ]);
   setKpi(sum);
+  // Update Last update banner using unified latest_time or fallback to status time
+  if(lastUpdateEl){
+    const iso = (sum && sum.latest_time) || (sum && sum.status && sum.status.time) || null;
+    if(iso){
+      const d = new Date(iso);
+      lastUpdateEl.textContent = `Last update: ${d.toLocaleString()}`;
+      const ageSec = (Date.now() - d.getTime())/1000;
+      if(ageSec > 600){ // older than 10 minutes -> warn color
+        lastUpdateEl.style.color = '#ef4444';
+      }else if(ageSec > 120){ // older than 2 minutes -> muted
+        lastUpdateEl.style.color = '#eab308';
+      }else{
+        lastUpdateEl.style.color = '';
+      }
+    }else{
+      lastUpdateEl.textContent = 'Last update: –';
+      lastUpdateEl.style.color = '';
+    }
+  }
   // SOC highlight pulse when value changes
   if(typeof sum?.status?.soc_percent === 'number'){
     const next = Math.round(sum.status.soc_percent);
@@ -150,8 +175,7 @@ async function refresh(){
   await loadDevices();
   await refresh();
   btnRefresh.addEventListener('click', refresh);
-  deviceSel.addEventListener('change', refresh);
-  windowSel.addEventListener('change', refresh);
+  if(deviceSel){ deviceSel.addEventListener('change', refresh); }
   setInterval(refresh, 15000);
 
   // Page load cascade animations
