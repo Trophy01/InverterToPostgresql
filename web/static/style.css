@@ -84,7 +84,7 @@ main{padding:20px;position:relative;z-index:1}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 
 /* Page load cascade */
-.reveal{opacity:0;transform:translateY(8px);transition:opacity .6s cubic-bezier(0.4,0,0.2,1),transform .6s cubic-bezier(0.4,0,0.2,1)}
+.reveal{opacity:0.001;transform:translateY(8px);transition:opacity .6s cubic-bezier(0.4,0,0.2,1),transform .6s cubic-bezier(0.4,0,0.2,1)}
 .reveal.show{opacity:1;transform:translateY(0)}
 .reveal-left{opacity:0;transform:translateX(-10px);transition:opacity .5s cubic-bezier(0.4,0,0.2,1),transform .5s cubic-bezier(0.4,0,0.2,1)}
 .reveal-left.show{opacity:1;transform:translateX(0)}
