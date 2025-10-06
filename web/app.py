@@ -289,14 +289,26 @@ def series(device_id: str):
     out: Dict[str, Any] = {'status': [], 'temps': [], 'cells': [], 'pos': []}
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT time, soc_percent, total_voltage_mv, current_amps FROM status_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
-            out['status'] = [{'t': t.isoformat(), 'soc': soc, 'v': v, 'i': i} for (t, soc, v, i) in cur.fetchall()]
-            cur.execute(f"SELECT time, bms_temps_c, cell_temps_c FROM temps_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
-            out['temps'] = [{'t': t.isoformat(), 'bms': b or [], 'cells': c or []} for (t, b, c) in cur.fetchall()]
-            cur.execute(f"SELECT time, cell_voltages_mv FROM cells_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
-            out['cells'] = [{'t': t.isoformat(), 'mv': arr or []} for (t, arr) in cur.fetchall()]
-            cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
-            out['pos'] = [{'t': t.isoformat(), 'lat': lat, 'lon': lon, 'sats': sats, 'dir': direction} for (t, lat, lon, sats, direction) in cur.fetchall()]
+            try:
+                cur.execute(f"SELECT time, soc_percent, total_voltage_mv, current_amps FROM status_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
+                out['status'] = [{'t': t.isoformat(), 'soc': soc, 'v': v, 'i': i} for (t, soc, v, i) in cur.fetchall()]
+            except Exception:
+                out['status'] = []
+            try:
+                cur.execute(f"SELECT time, bms_temps_c, cell_temps_c FROM temps_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
+                out['temps'] = [{'t': t.isoformat(), 'bms': b or [], 'cells': c or []} for (t, b, c) in cur.fetchall()]
+            except Exception:
+                out['temps'] = []
+            try:
+                cur.execute(f"SELECT time, cell_voltages_mv FROM cells_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
+                out['cells'] = [{'t': t.isoformat(), 'mv': arr or []} for (t, arr) in cur.fetchall()]
+            except Exception:
+                out['cells'] = []
+            try:
+                cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe} WHERE time >= %s ORDER BY time ASC", (since,))
+                out['pos'] = [{'t': t.isoformat(), 'lat': lat, 'lon': lon, 'sats': sats, 'dir': direction} for (t, lat, lon, sats, direction) in cur.fetchall()]
+            except Exception:
+                out['pos'] = []
 
             # Fallback: if no recent data, return the last available N samples (historical)
             try:

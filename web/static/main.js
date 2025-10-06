@@ -107,6 +107,40 @@ function renderSeries(series){
     { label: 'Satellites', data: pos.map(p => p.sats), borderColor: '#5fbf6b', tension: 0.2 },
     { label: 'Direction', data: pos.map(p => p.dir ?? 0), borderColor: '#e7c85a', tension: 0.2 }
   ]);
+
+  // Empty/old placeholders
+  function ensurePlaceholder(chartId, seriesArr){
+    const container = document.getElementById(chartId)?.parentElement;
+    if(!container) return;
+    let placeholder = container.querySelector('.chart-empty');
+    const hasData = Array.isArray(seriesArr) && seriesArr.length > 0;
+    // Detect very old data (> 7 days)
+    let oldMsg = null;
+    if(hasData){
+      const lastIso = seriesArr[seriesArr.length-1]?.t;
+      if(lastIso){
+        const last = new Date(lastIso);
+        const ageDays = (Date.now() - last.getTime()) / (1000*60*60*24);
+        if(ageDays > 7){ oldMsg = `Last data from: ${last.toLocaleString()}`; }
+      }
+    }
+    if(!hasData || oldMsg){
+      if(!placeholder){
+        placeholder = document.createElement('div');
+        placeholder.className = 'chart-empty';
+        container.appendChild(placeholder);
+      }
+      placeholder.textContent = oldMsg || 'No data yet';
+      placeholder.style.display = 'flex';
+    }else if(placeholder){
+      placeholder.style.display = 'none';
+    }
+  }
+
+  ensurePlaceholder('c-status', status);
+  ensurePlaceholder('c-temps', temps);
+  ensurePlaceholder('c-cells', cellsSeries);
+  ensurePlaceholder('c-pos', pos);
 }
 
 async function refresh(){
