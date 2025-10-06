@@ -32,6 +32,11 @@
           <option value="24">24h</option>
         </select>
         <button id="refresh">Refresh</button>
+        <div class="user-controls">
+          <span class="user-info">Battery: {{ current_user.battery_id }}</span>
+          <a href="{{ url_for('change_password') }}" class="btn btn-secondary">Change Password</a>
+          <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+        </div>
       </div>
     </header>
     <main>

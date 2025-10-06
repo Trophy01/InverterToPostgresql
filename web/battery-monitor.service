@@ -1,0 +1,24 @@
+[Unit]
+Description=Battery Monitor Flask Application
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/home/trophy/BatteryMonitoring2/web
+Environment=PATH=/home/trophy/BatteryMonitoring2/web/venv/bin
+Environment=DB_HOST=127.0.0.1
+Environment=DB_PORT=5432
+Environment=DB_NAME=batteries
+Environment=DB_USER=troy
+Environment=DB_PASS=s3rv3r5mx
+Environment=SECRET_KEY=your-secret-key-change-in-production
+ExecStart=/home/trophy/BatteryMonitoring2/web/venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 3 --timeout 120 app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
