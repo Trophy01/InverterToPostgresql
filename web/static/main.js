@@ -46,19 +46,28 @@ function setKpi(summary){
 }
 
 function lineChart(ctxId, labels, datasets){
-  if(charts[ctxId]) charts[ctxId].destroy();
-  const ctx = document.getElementById(ctxId);
-  charts[ctxId] = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      resizeDelay: 100,
-      scales: { x: { ticks: { color: '#a8adb3' } }, y: { ticks: { color: '#a8adb3' }, grid: { color: '#2a2f33' } } },
-      plugins: { legend: { labels: { color: '#e7e9ea' } } }
-    }
-  });
+  const el = document.getElementById(ctxId);
+  if(!el) return;
+  const traces = datasets.map((ds, i) => ({
+    x: labels,
+    y: ds.data,
+    type: 'scatter',
+    mode: 'lines',
+    name: ds.label,
+    line: { color: ds.borderColor || '#8B5CF6', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(139,92,246,0.08)'
+  }));
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    margin: { l: 40, r: 20, t: 10, b: 30 },
+    xaxis: { tickfont: { color: '#6b7280' }, gridcolor: '#e5e7eb' },
+    yaxis: { tickfont: { color: '#6b7280' }, gridcolor: '#e5e7eb' },
+    showlegend: true,
+    legend: { font: { color: '#6b7280' } }
+  };
+  Plotly.react(el, traces, layout, {displayModeBar: false, responsive: true});
 }
 
 function renderSeries(series){

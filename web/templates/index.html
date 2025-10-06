@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Battery Monitor</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <!-- Removed Leaflet CSS (no embedded map) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Removed Leaflet JS (no embedded map) -->
@@ -31,6 +32,12 @@
       </div>
     </header>
     <main>
+      <div class="bg-shapes" aria-hidden="true">
+        <span class="shape circle"></span>
+        <span class="shape ring"></span>
+        <span class="shape blob"></span>
+        <span class="shape arc"></span>
+      </div>
       <section class="hero">
         <div class="hero-primary">
           <div class="hero-label">Battery Health</div>

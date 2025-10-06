@@ -54,4 +54,13 @@ main{padding:20px}
 .pos-link{font-size:12px;background:#f9fafb;border:1px solid var(--line);color:#6d28d9;padding:6px 10px;border-radius:999px;text-decoration:none}
 .pos-link:hover{background:#f3f4f6;border-color:#d1d5db}
 
+/* Floating abstract shapes layer */
+.bg-shapes{position:fixed;inset:0;pointer-events:none;z-index:0}
+.shape{position:absolute;display:block;filter:blur(2px);animation:float 14s ease-in-out infinite}
+.shape.circle{top:8%;left:6%;width:280px;height:280px;background:radial-gradient(circle, rgba(139,92,246,0.12), rgba(167,139,250,0));border-radius:50%}
+.shape.ring{bottom:12%;right:8%;width:320px;height:320px;border-radius:50%;box-shadow:0 0 0 38px rgba(196,181,253,0.12) inset,0 0 0 2px rgba(196,181,253,0.22) inset;opacity:.6;animation-duration:18s}
+.shape.blob{top:40%;left:50%;width:420px;height:280px;background:radial-gradient(ellipse at 30% 40%, rgba(221,214,254,0.28), rgba(221,214,254,0));transform:translate(-50%,-50%) rotate(8deg);filter:blur(20px);animation-duration:22s}
+.shape.arc{top:70%;left:12%;width:220px;height:220px;border-radius:50%;box-shadow:0 0 0 2px rgba(167,139,250,0.35) inset;clip-path:polygon(0 0,100% 0,100% 50%,0 100%);opacity:.4;animation-duration:20s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
 
