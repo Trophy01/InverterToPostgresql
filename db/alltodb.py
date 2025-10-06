@@ -79,6 +79,9 @@ class WebDashboard:
         self.proc: Optional[subprocess.Popen] = None
 
     def start(self) -> None:
+        # Allow disabling the embedded dev dashboard when running as a service
+        if os.getenv('DISABLE_DASHBOARD') == '1':
+            return
         env = os.environ.copy()
         env.update(self.db_env)
         # Launch web/app.py
@@ -1118,6 +1121,9 @@ class WebAppManager:
     def start_web_app(self) -> bool:
         """Start web application in background"""
         try:
+            # Allow disabling when managed separately by Gunicorn/nginx
+            if os.getenv('DISABLE_DASHBOARD') == '1':
+                return True
             web_dir = '/home/trophy/BatteryMonitoring2/web'
             cmd = ['python3', 'app.py']
             self.process = subprocess.Popen(
