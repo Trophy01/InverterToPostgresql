@@ -16,7 +16,7 @@ button{cursor:pointer}
 .btn{text-decoration:none;display:inline-block;padding:6px 12px;border-radius:4px;font-size:12px;transition:background-color 0.2s}
 .btn-secondary{background:#8B5CF6;color:white;border:1px solid #8B5CF6}
 .btn-secondary:hover{background:#7c3aed;border-color:#7c3aed}
-main{padding:20px}
+main{padding:20px;position:relative;z-index:1}
 .title-hero{margin:20px 0 10px 0}
 .title-main{font-size:56px;font-weight:800;line-height:1.05}
 .title-sub{font-size:16px;color:var(--muted)}
@@ -65,10 +65,10 @@ main{padding:20px}
 /* Floating abstract shapes layer */
 .bg-shapes{position:fixed;inset:0;pointer-events:none;z-index:0}
 .shape{position:absolute;display:block;filter:blur(2px);animation:float 14s ease-in-out infinite;will-change:transform,opacity}
-.shape.circle{top:8%;left:6%;width:280px;height:280px;background:radial-gradient(circle, rgba(139,92,246,0.12), rgba(167,139,250,0));border-radius:50%}
-.shape.ring{bottom:12%;right:8%;width:320px;height:320px;border-radius:50%;box-shadow:0 0 0 38px rgba(196,181,253,0.12) inset,0 0 0 2px rgba(196,181,253,0.22) inset;opacity:.6;animation-duration:18s}
-.shape.blob{top:40%;left:50%;width:420px;height:280px;background:radial-gradient(ellipse at 30% 40%, rgba(221,214,254,0.28), rgba(221,214,254,0));transform:translate(-50%,-50%) rotate(8deg);filter:blur(20px);animation-duration:22s}
-.shape.arc{top:70%;left:12%;width:220px;height:220px;border-radius:50%;box-shadow:0 0 0 2px rgba(167,139,250,0.35) inset;clip-path:polygon(0 0,100% 0,100% 50%,0 100%);opacity:.4;animation-duration:20s}
+.shape.circle{top:8%;left:6%;width:280px;height:280px;background:radial-gradient(circle, rgba(139,92,246,0.24), rgba(167,139,250,0.08));border-radius:50%}
+.shape.ring{bottom:12%;right:8%;width:320px;height:320px;border-radius:50%;box-shadow:0 0 0 38px rgba(196,181,253,0.20) inset,0 0 0 2px rgba(196,181,253,0.35) inset;opacity:.75;animation-duration:18s}
+.shape.blob{top:40%;left:50%;width:440px;height:300px;background:radial-gradient(ellipse at 30% 40%, rgba(221,214,254,0.38), rgba(221,214,254,0.10));transform:translate(-50%,-50%) rotate(8deg);filter:blur(14px);animation-duration:22s}
+.shape.arc{top:70%;left:12%;width:240px;height:240px;border-radius:50%;box-shadow:0 0 0 2px rgba(167,139,250,0.5) inset;clip-path:polygon(0 0,100% 0,100% 50%,0 100%);opacity:.55;animation-duration:20s}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 
 /* Page load cascade */
