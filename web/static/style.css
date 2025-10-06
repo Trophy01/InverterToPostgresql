@@ -56,11 +56,36 @@ main{padding:20px}
 
 /* Floating abstract shapes layer */
 .bg-shapes{position:fixed;inset:0;pointer-events:none;z-index:0}
-.shape{position:absolute;display:block;filter:blur(2px);animation:float 14s ease-in-out infinite}
+.shape{position:absolute;display:block;filter:blur(2px);animation:float 14s ease-in-out infinite;will-change:transform,opacity}
 .shape.circle{top:8%;left:6%;width:280px;height:280px;background:radial-gradient(circle, rgba(139,92,246,0.12), rgba(167,139,250,0));border-radius:50%}
 .shape.ring{bottom:12%;right:8%;width:320px;height:320px;border-radius:50%;box-shadow:0 0 0 38px rgba(196,181,253,0.12) inset,0 0 0 2px rgba(196,181,253,0.22) inset;opacity:.6;animation-duration:18s}
 .shape.blob{top:40%;left:50%;width:420px;height:280px;background:radial-gradient(ellipse at 30% 40%, rgba(221,214,254,0.28), rgba(221,214,254,0));transform:translate(-50%,-50%) rotate(8deg);filter:blur(20px);animation-duration:22s}
 .shape.arc{top:70%;left:12%;width:220px;height:220px;border-radius:50%;box-shadow:0 0 0 2px rgba(167,139,250,0.35) inset;clip-path:polygon(0 0,100% 0,100% 50%,0 100%);opacity:.4;animation-duration:20s}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+/* Page load cascade */
+.reveal{opacity:0;transform:translateY(8px);transition:opacity .6s cubic-bezier(0.4,0,0.2,1),transform .6s cubic-bezier(0.4,0,0.2,1)}
+.reveal.show{opacity:1;transform:translateY(0)}
+.reveal-left{opacity:0;transform:translateX(-10px);transition:opacity .5s cubic-bezier(0.4,0,0.2,1),transform .5s cubic-bezier(0.4,0,0.2,1)}
+.reveal-left.show{opacity:1;transform:translateX(0)}
+.reveal-scale{opacity:0;transform:scale(.95);transition:opacity .7s cubic-bezier(0.4,0,0.2,1),transform .7s cubic-bezier(0.4,0,0.2,1)}
+.reveal-scale.show{opacity:1;transform:scale(1)}
+
+/* Hover micro-interactions */
+.btn,button,select{transition:transform .2s ease, box-shadow .2s ease}
+.btn:hover,button:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(139,92,246,0.12)}
+.card{transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(139,92,246,0.08);border-color:rgba(139,92,246,0.25)}
+
+/* Pulses and highlights */
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 rgba(139,92,246,0.2)}50%{box-shadow:0 0 0 10px rgba(139,92,246,0)}}
+.highlight{animation:pulseGlow 1.2s ease-in-out 1}
+
+/* Reduce motion accessibility */
+@media (prefers-reduced-motion: reduce){
+  .shape{animation:none}
+  .reveal,.reveal-left,.reveal-scale{transition:none}
+  .btn:hover,button:hover,.card:hover{transform:none;box-shadow:none}
+}
 
 

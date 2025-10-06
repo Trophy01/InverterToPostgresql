@@ -114,6 +114,16 @@ async function refresh(){
     fetchJSON(`/api/series/${id}?hours=${hours}`)
   ]);
   setKpi(sum);
+  // SOC highlight pulse when value changes
+  if(typeof sum?.status?.soc_percent === 'number'){
+    const next = Math.round(sum.status.soc_percent);
+    if(typeof window.__lastSOC === 'number' && next !== window.__lastSOC){
+      kSOC.classList.remove('highlight');
+      void kSOC.offsetWidth; // reflow
+      kSOC.classList.add('highlight');
+    }
+    window.__lastSOC = next;
+  }
   renderSeries(ser);
 
   // Build Google Maps links for each valid position
@@ -143,6 +153,14 @@ async function refresh(){
   deviceSel.addEventListener('change', refresh);
   windowSel.addEventListener('change', refresh);
   setInterval(refresh, 15000);
+
+  // Page load cascade animations
+  const hero = document.getElementById('reveal-hero');
+  if(hero){ setTimeout(()=>hero.classList.add('show'), 400); }
+  const pills = document.querySelectorAll('.chip');
+  pills.forEach((p,i)=> setTimeout(()=>p.classList.add('show'), 600 + i*100));
+  const cards = document.querySelectorAll('.reveal-scale');
+  cards.forEach((c,i)=> setTimeout(()=>c.classList.add('show'), 900 + i*120));
 })();
 
 // Removed embedded Leaflet map; using external Google Maps links instead.
