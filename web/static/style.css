@@ -17,6 +17,18 @@ button{cursor:pointer}
 .btn-secondary{background:#8B5CF6;color:white;border:1px solid #8B5CF6}
 .btn-secondary:hover{background:#7c3aed;border-color:#7c3aed}
 main{padding:20px;position:relative;z-index:1}
+.auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;padding:24px}
+.auth-card{width:100%;max-width:440px;background:rgba(255,255,255,0.8);backdrop-filter:blur(10px);border:1px solid rgba(139,92,246,0.18);box-shadow:0 8px 32px rgba(139,92,246,0.08);border-radius:24px;padding:28px;position:relative;z-index:1}
+.auth-title{font-size:32px;font-weight:800;margin:0 0 6px 0;color:#111827;text-align:center}
+.auth-sub{font-size:14px;color:var(--muted);text-align:center;margin-bottom:18px}
+.form{display:flex;flex-direction:column;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group label{font-weight:600;color:#374151}
+.form-group input{padding:12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff}
+.form-group input:focus{outline:none;border-color:rgba(139,92,246,0.5);box-shadow:0 0 0 3px rgba(139,92,246,0.15)}
+.actions{display:flex;gap:10px;margin-top:6px}
+.btn-primary{background:#8B5CF6;color:#fff;border:1px solid #8B5CF6}
+.btn-primary:hover{background:#7c3aed;border-color:#7c3aed}
 .title-hero{margin:20px 0 10px 0}
 .title-main{font-size:56px;font-weight:800;line-height:1.05}
 .title-sub{font-size:16px;color:var(--muted)}

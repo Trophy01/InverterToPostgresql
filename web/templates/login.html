@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Battery Monitor - Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css" />
     <style>
       .login-container {
@@ -94,9 +97,16 @@
       }
     </style>
   </head>
-  <body>
-    <div class="login-container">
-      <h1 style="text-align: center; margin-bottom: 2rem; color: #333;">Battery Monitor</h1>
+  <body class="auth-page">
+    <div class="bg-shapes" aria-hidden="true">
+      <span class="shape circle"></span>
+      <span class="shape ring"></span>
+      <span class="shape blob"></span>
+      <span class="shape arc"></span>
+    </div>
+    <div class="auth-card reveal">
+      <h1 class="auth-title">Battery Monitor</h1>
+      <div class="auth-sub">Sign in to continue</div>
       
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -106,7 +116,7 @@
         {% endif %}
       {% endwith %}
       
-      <form method="POST" class="login-form">
+      <form method="POST" class="form">
         <div class="form-group">
           <label for="battery_id">Battery ID</label>
           <input type="text" id="battery_id" name="battery_id" required 
@@ -120,10 +130,12 @@
                  placeholder="Enter your password">
         </div>
         
-        <button type="submit" class="btn btn-primary">Login</button>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Login</button>
+        </div>
       </form>
       
-      <div class="help-text">
+      <div class="help-text" style="text-align:center">
         <p><strong>First time?</strong> Enter your battery ID and create a password. Your account will be created automatically.</p>
         <p><strong>Returning user?</strong> Use your existing battery ID and password.</p>
       </div>
