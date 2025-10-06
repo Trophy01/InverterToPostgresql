@@ -1,0 +1,26 @@
+[Unit]
+Description=Persistent SSH tunnel to remote PostgreSQL
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+# Change to your actual SSH parameters
+Environment=TUNNEL_HOST=sa@154.119.80.42
+Environment=LOCAL_PORT=5432
+Environment=REMOTE_HOST=127.0.0.1
+Environment=REMOTE_PORT=5432
+ExecStart=/usr/bin/ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L ${LOCAL_PORT}:${REMOTE_HOST}:${REMOTE_PORT} ${TUNNEL_HOST}
+Restart=always
+RestartSec=5s
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
