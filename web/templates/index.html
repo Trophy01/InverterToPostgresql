@@ -12,6 +12,8 @@
     <!-- Removed Leaflet CSS (no embedded map) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Removed Leaflet JS (no embedded map) -->
+    <!-- Google Maps API - Replace YOUR_API_KEY with actual key -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
   </head>
   <body>
     <script>window.DEFAULT_DEVICE = "{{ current_user.battery_id }}";</script>
@@ -76,6 +78,19 @@
           <div class="pos-links">
             <div class="pos-links-header">Recent locations</div>
             <div id="pos-links-list" class="pos-links-list"></div>
+          </div>
+        </div>
+        <div class="card reveal-scale">
+          <h2>Location Map</h2>
+          <div class="map-container">
+            <div id="battery-map"></div>
+            <div id="map-placeholder" class="map-placeholder">
+              <div class="map-placeholder-content">
+                <div class="map-placeholder-icon">📍</div>
+                <div class="map-placeholder-text">Map loading...</div>
+                <div class="map-placeholder-note">Add your Google Maps API key to enable</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

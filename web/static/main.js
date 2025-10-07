@@ -10,6 +10,7 @@ const kStatus = document.getElementById('k-status');
 const kTemp = document.getElementById('k-temp');
 
 let charts = {};
+let batteryMap = null;
 
 async function fetchJSON(url){
   const r = await fetch(url);
@@ -141,6 +142,100 @@ function renderSeries(series){
   ensurePlaceholder('c-temps', temps);
   ensurePlaceholder('c-cells', cellsSeries);
   ensurePlaceholder('c-pos', pos);
+}
+
+// Google Maps integration
+function initMap() {
+  // This function is called by Google Maps API when it loads
+  console.log('Google Maps API loaded');
+  updateBatteryMap();
+}
+
+function updateBatteryMap() {
+  const mapElement = document.getElementById('battery-map');
+  const placeholder = document.getElementById('map-placeholder');
+  
+  if (!mapElement || !placeholder) return;
+  
+  // Check if Google Maps is available
+  if (typeof google === 'undefined' || !google.maps) {
+    placeholder.querySelector('.map-placeholder-text').textContent = 'Google Maps API not loaded';
+    placeholder.querySelector('.map-placeholder-note').textContent = 'Check your API key configuration';
+    return;
+  }
+  
+  // Get latest position from summary data
+  const latestPos = window.latestPositionData;
+  if (!latestPos || !latestPos.lat || !latestPos.lon) {
+    placeholder.querySelector('.map-placeholder-text').textContent = 'No location data available';
+    placeholder.querySelector('.map-placeholder-note').textContent = 'Battery position not yet reported';
+    return;
+  }
+  
+  // Initialize map
+  const batteryLocation = { lat: latestPos.lat, lng: latestPos.lon };
+  
+  batteryMap = new google.maps.Map(mapElement, {
+    zoom: 15,
+    center: batteryLocation,
+    styles: [
+      {
+        featureType: 'all',
+        elementType: 'geometry.fill',
+        stylers: [{ color: '#f8fafc' }]
+      },
+      {
+        featureType: 'water',
+        elementType: 'geometry.fill',
+        stylers: [{ color: '#e0f2fe' }]
+      },
+      {
+        featureType: 'road',
+        elementType: 'geometry.stroke',
+        stylers: [{ color: '#e5e7eb' }]
+      }
+    ]
+  });
+  
+  // Add battery marker
+  new google.maps.Marker({
+    position: batteryLocation,
+    map: batteryMap,
+    title: `Battery ${window.DEFAULT_DEVICE || 'Location'}`,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 8,
+      fillColor: '#8B5CF6',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 2
+    }
+  });
+  
+  // Hide placeholder
+  placeholder.style.display = 'none';
+}
+
+// Store latest position data for map updates
+function setKpi(summary){
+  const s = summary.status || {};
+  // Hero SOC emphasized
+  kSOC.textContent = s.soc_percent != null ? (Math.round(s.soc_percent)+'%') : '–';
+  kV.textContent = s.total_voltage_mv != null ? (s.total_voltage_mv+' mV') : '–';
+  kI.textContent = s.current_amps != null ? (s.current_amps.toFixed(1)+' A') : '–';
+  kCycles.textContent = s.loop_cycles != null ? s.loop_cycles : '–';
+  kStatus.textContent = s.status_text || '–';
+  // Show average temp if available
+  if (Array.isArray(s.temps_c) && s.temps_c.length){
+    const avg = s.temps_c.reduce((a,b)=>a+b,0)/s.temps_c.length;
+    kTemp.textContent = avg.toFixed(1)+' °C';
+  }
+  
+  // Store position data for map
+  if (summary.position) {
+    window.latestPositionData = summary.position;
+    updateBatteryMap();
+  }
 }
 
 async function refresh(){
