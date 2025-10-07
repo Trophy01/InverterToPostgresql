@@ -11,6 +11,7 @@ const kTemp = document.getElementById('k-temp');
 
 let charts = {};
 let batteryMap = null;
+let mapMarkers = [];
 
 async function fetchJSON(url){
   const r = await fetch(url);
@@ -144,98 +145,105 @@ function renderSeries(series){
   ensurePlaceholder('c-pos', pos);
 }
 
-// Google Maps integration
+// Google Maps functionality
 function initMap() {
-  // This function is called by Google Maps API when it loads
-  console.log('Google Maps API loaded');
-  updateBatteryMap();
-}
-
-function updateBatteryMap() {
   const mapElement = document.getElementById('battery-map');
   const placeholder = document.getElementById('map-placeholder');
   
-  if (!mapElement || !placeholder) return;
+  if (!mapElement) return;
   
-  // Check if Google Maps is available
-  if (typeof google === 'undefined' || !google.maps) {
-    placeholder.querySelector('.map-placeholder-text').textContent = 'Google Maps API not loaded';
-    placeholder.querySelector('.map-placeholder-note').textContent = 'Check your API key configuration';
+  // Check if API key is properly set
+  const script = document.querySelector('script[src*="maps.googleapis.com"]');
+  if (script && script.src.includes('YOUR_API_KEY_HERE')) {
+    // API key not set, show placeholder
+    if (placeholder) placeholder.style.display = 'flex';
     return;
   }
   
-  // Get latest position from summary data
-  const latestPos = window.latestPositionData;
-  if (!latestPos || !latestPos.lat || !latestPos.lon) {
-    placeholder.querySelector('.map-placeholder-text').textContent = 'No location data available';
-    placeholder.querySelector('.map-placeholder-note').textContent = 'Battery position not yet reported';
-    return;
-  }
-  
-  // Initialize map
-  const batteryLocation = { lat: latestPos.lat, lng: latestPos.lon };
-  
+  // Initialize map centered on Zimbabwe (approximate center)
   batteryMap = new google.maps.Map(mapElement, {
-    zoom: 15,
-    center: batteryLocation,
+    zoom: 8,
+    center: { lat: -19.0154, lng: 29.1549 }, // Zimbabwe center
     styles: [
       {
         featureType: 'all',
         elementType: 'geometry.fill',
-        stylers: [{ color: '#f8fafc' }]
+        stylers: [{ color: '#f8f9fa' }]
       },
       {
         featureType: 'water',
         elementType: 'geometry.fill',
-        stylers: [{ color: '#e0f2fe' }]
-      },
-      {
-        featureType: 'road',
-        elementType: 'geometry.stroke',
-        stylers: [{ color: '#e5e7eb' }]
+        stylers: [{ color: '#e3f2fd' }]
       }
     ]
   });
   
-  // Add battery marker
-  new google.maps.Marker({
-    position: batteryLocation,
-    map: batteryMap,
-    title: `Battery ${window.DEFAULT_DEVICE || 'Location'}`,
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 8,
-      fillColor: '#8B5CF6',
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2
-    }
-  });
-  
-  // Hide placeholder
-  placeholder.style.display = 'none';
+  // Hide placeholder when map loads
+  if (placeholder) placeholder.style.display = 'none';
 }
 
-// Store latest position data for map updates
-function setKpi(summary){
-  const s = summary.status || {};
-  // Hero SOC emphasized
-  kSOC.textContent = s.soc_percent != null ? (Math.round(s.soc_percent)+'%') : '–';
-  kV.textContent = s.total_voltage_mv != null ? (s.total_voltage_mv+' mV') : '–';
-  kI.textContent = s.current_amps != null ? (s.current_amps.toFixed(1)+' A') : '–';
-  kCycles.textContent = s.loop_cycles != null ? s.loop_cycles : '–';
-  kStatus.textContent = s.status_text || '–';
-  // Show average temp if available
-  if (Array.isArray(s.temps_c) && s.temps_c.length){
-    const avg = s.temps_c.reduce((a,b)=>a+b,0)/s.temps_c.length;
-    kTemp.textContent = avg.toFixed(1)+' °C';
-  }
+function showLast10Positions() {
+  if (!batteryMap || !window.lastPositions) return;
   
-  // Store position data for map
-  if (summary.position) {
-    window.latestPositionData = summary.position;
-    updateBatteryMap();
+  // Clear existing markers
+  mapMarkers.forEach(marker => marker.setMap(null));
+  mapMarkers = [];
+  
+  const positions = window.lastPositions.slice(-10).reverse(); // Last 10, newest first
+  if (positions.length === 0) return;
+  
+  const bounds = new google.maps.LatLngBounds();
+  
+  positions.forEach((pos, index) => {
+    const lat = parseFloat(pos.lat);
+    const lng = parseFloat(pos.lon);
+    
+    if (isNaN(lat) || isNaN(lng)) return;
+    
+    const marker = new google.maps.Marker({
+      position: { lat, lng },
+      map: batteryMap,
+      title: `Position ${index + 1} - ${new Date(pos.t).toLocaleString()}`,
+      label: {
+        text: `${index + 1}`,
+        color: '#ffffff',
+        fontSize: '12px',
+        fontWeight: 'bold'
+      },
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: index === 0 ? '#ef4444' : '#8B5CF6', // Red for newest, purple for others
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 2
+      }
+    });
+    
+    mapMarkers.push(marker);
+    bounds.extend({ lat, lng });
+  });
+  
+  // Fit map to show all markers
+  if (mapMarkers.length > 0) {
+    batteryMap.fitBounds(bounds);
+    // Ensure minimum zoom level
+    const listener = google.maps.event.addListener(batteryMap, 'idle', function() {
+      if (batteryMap.getZoom() > 15) batteryMap.setZoom(15);
+      google.maps.event.removeListener(listener);
+    });
   }
+}
+
+function clearMap() {
+  if (!batteryMap) return;
+  
+  mapMarkers.forEach(marker => marker.setMap(null));
+  mapMarkers = [];
+  
+  // Reset to default view
+  batteryMap.setCenter({ lat: -19.0154, lng: 29.1549 });
+  batteryMap.setZoom(8);
 }
 
 async function refresh(){
@@ -280,24 +288,8 @@ async function refresh(){
   }
   renderSeries(ser);
 
-  // Build Google Maps links for each valid position
-  const pos = (ser.pos || []).filter(p => typeof p.lat === 'number' && typeof p.lon === 'number');
-  const list = document.getElementById('pos-links-list');
-  if(list){
-    list.innerHTML = '';
-    for(const p of pos.slice(-8).reverse()){
-      let y = parseFloat(p.lat), x = parseFloat(p.lon);
-      if (Math.abs(y) > 90 && Math.abs(x) <= 90) { const t=y; y=x; x=t; }
-      while (x > 180) x -= 360; while (x < -180) x += 360; if (y > 90) y = 90; if (y < -90) y = -90;
-      const a = document.createElement('a');
-      a.className = 'pos-link';
-      a.href = `https://www.google.com/maps?q=${y},${x}`;
-      a.target = '_blank'; a.rel = 'noopener';
-      const when = new Date(p.t).toLocaleTimeString();
-      a.textContent = `View on Maps • ${when}`;
-      list.appendChild(a);
-    }
-  }
+  // Store positions for map functionality
+  window.lastPositions = (ser.pos || []).filter(p => typeof p.lat === 'number' && typeof p.lon === 'number');
 }
 
 (async function init(){
@@ -306,6 +298,12 @@ async function refresh(){
   btnRefresh.addEventListener('click', refresh);
   if(deviceSel){ deviceSel.addEventListener('change', refresh); }
   setInterval(refresh, 15000);
+  
+  // Map button event listeners
+  const showLast10Btn = document.getElementById('show-last-10');
+  const clearMapBtn = document.getElementById('clear-map');
+  if(showLast10Btn) showLast10Btn.addEventListener('click', showLast10Positions);
+  if(clearMapBtn) clearMapBtn.addEventListener('click', clearMap);
 
   // Page load cascade animations
   const hero = document.getElementById('reveal-hero');
