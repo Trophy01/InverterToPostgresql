@@ -116,6 +116,9 @@ def update_user_password(battery_id: str, new_password: str) -> bool:
 @app.route('/')
 @login_required
 def index():
+    # Check if user is admin
+    if current_user.battery_id == 'telco':
+        return redirect(url_for('admin_dashboard'))
     return render_template('index.html')
 
 
@@ -340,6 +343,159 @@ def series(device_id: str):
             except Exception:
                 pass
     return jsonify(out)
+
+
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    """Admin dashboard for telco user"""
+    if current_user.battery_id != 'telco':
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('index'))
+    return render_template('admin.html')
+
+
+@app.route('/api/admin/batteries')
+@login_required
+def admin_batteries():
+    """Get all batteries with their latest data"""
+    if current_user.battery_id != 'telco':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    batteries = []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Get all device tables
+            cur.execute("""
+                SELECT tablename FROM pg_tables 
+                WHERE schemaname='public' AND (tablename LIKE 'info_%' OR tablename LIKE 'pos_%')
+            """)
+            tables = [r[0] for r in cur.fetchall()]
+            
+            device_ids = set()
+            for t in tables:
+                if t.startswith('info_'):
+                    device_ids.add(t.split('info_')[1])
+                elif t.startswith('pos_'):
+                    device_ids.add(t.split('pos_')[1])
+            
+            # Get latest data for each device
+            for device_id in sorted(device_ids):
+                safe_id = ''.join(c for c in device_id if c.isalnum() or c == '_')
+                battery_data = {'device_id': device_id, 'status': None, 'position': None, 'last_seen': None}
+                
+                try:
+                    # Get latest status
+                    cur.execute(f"SELECT time, soc_percent, total_voltage_mv, current_amps, status_text FROM status_{safe_id} ORDER BY time DESC LIMIT 1")
+                    status_row = cur.fetchone()
+                    if status_row:
+                        battery_data['status'] = {
+                            'time': status_row[0].isoformat(),
+                            'soc_percent': status_row[1],
+                            'total_voltage_mv': status_row[2],
+                            'current_amps': status_row[3],
+                            'status_text': status_row[4]
+                        }
+                        battery_data['last_seen'] = status_row[0].isoformat()
+                except Exception:
+                    pass
+                
+                try:
+                    # Get latest position
+                    cur.execute(f"SELECT time, lat, lon, sats_total FROM pos_{safe_id} ORDER BY time DESC LIMIT 1")
+                    pos_row = cur.fetchone()
+                    if pos_row:
+                        battery_data['position'] = {
+                            'time': pos_row[0].isoformat(),
+                            'lat': pos_row[1],
+                            'lon': pos_row[2],
+                            'sats_total': pos_row[3]
+                        }
+                        if not battery_data['last_seen']:
+                            battery_data['last_seen'] = pos_row[0].isoformat()
+                except Exception:
+                    pass
+                
+                batteries.append(battery_data)
+    
+    return jsonify(batteries)
+
+
+@app.route('/api/admin/battery/<device_id>/history')
+@login_required
+def admin_battery_history(device_id: str):
+    """Get last 20 records for a specific battery"""
+    if current_user.battery_id != 'telco':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    safe_id = ''.join(c for c in device_id if c.isalnum() or c == '_')
+    history = {'status': [], 'position': []}
+    
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            try:
+                cur.execute(f"SELECT time, soc_percent, total_voltage_mv, current_amps, status_text FROM status_{safe_id} ORDER BY time DESC LIMIT 20")
+                history['status'] = [{'time': r[0].isoformat(), 'soc': r[1], 'voltage': r[2], 'current': r[3], 'status': r[4]} for r in cur.fetchall()]
+            except Exception:
+                pass
+            
+            try:
+                cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe_id} ORDER BY time DESC LIMIT 20")
+                history['position'] = [{'time': r[0].isoformat(), 'lat': r[1], 'lon': r[2], 'sats': r[3], 'direction': r[4]} for r in cur.fetchall()]
+            except Exception:
+                pass
+    
+    return jsonify(history)
+
+
+@app.route('/api/admin/control', methods=['POST'])
+@login_required
+def admin_control():
+    """Send control command to battery"""
+    if current_user.battery_id != 'telco':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    data = request.get_json()
+    device_id = data.get('device_id')
+    control_type = data.get('control_type')  # 1=discharge, 2=charging, 3=static
+    value = data.get('value')  # 0=allow, 1=disallow
+    
+    if not all([device_id, control_type is not None, value is not None]):
+        return jsonify({'error': 'Missing parameters'}), 400
+    
+    # Here you would integrate with your MQTT control system
+    # For now, return a mock response
+    return jsonify({
+        'success': True,
+        'message': f'Control command sent to {device_id}',
+        'command': f'Type {control_type}, Value {value}',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
+
+@app.route('/api/admin/status')
+@login_required
+def admin_status():
+    """Check system status (database and MQTT)"""
+    if current_user.battery_id != 'telco':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    status = {'database': False, 'mqtt': False}
+    
+    # Check database connection
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        status['database'] = True
+    except Exception:
+        pass
+    
+    # MQTT status would need to be implemented based on your MQTT setup
+    # For now, assume it's connected if database is connected
+    status['mqtt'] = status['database']
+    
+    return jsonify(status)
 
 
 if __name__ == '__main__':

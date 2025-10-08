@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Battery Management System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHnNNfKvg5WoMTL7_bj57Kceyd6HRaefc&callback=initMap"></script>
+  </head>
+  <body>
+    <header class="top">
+      <h1>Battery Management System</h1>
+      <div class="controls">
+        <div class="system-status">
+          <span id="db-status" class="status-indicator">Database: Checking...</span>
+          <span id="mqtt-status" class="status-indicator">MQTT: Checking...</span>
+        </div>
+        <button id="refresh" class="btn btn-primary">Refresh All</button>
+        <div class="user-controls">
+          <span class="user-info">Admin: {{ current_user.battery_id }}</span>
+          <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="bg-shapes" aria-hidden="true">
+        <span class="shape circle"></span>
+        <span class="shape ring"></span>
+        <span class="shape blob"></span>
+        <span class="shape arc"></span>
+      </div>
+
+      <section class="title-hero">
+        <div class="title-main">System Overview</div>
+        <div class="title-sub">All Battery Management</div>
+      </section>
+
+      <section class="admin-stats">
+        <div class="stat-card">
+          <div class="stat-value" id="total-batteries">-</div>
+          <div class="stat-label">Total Batteries</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="online-batteries">-</div>
+          <div class="stat-label">Online</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="offline-batteries">-</div>
+          <div class="stat-label">Offline</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="avg-soc">-</div>
+          <div class="stat-label">Avg SOC</div>
+        </div>
+      </section>
+
+      <section class="batteries-grid" id="batteries-grid">
+        <!-- Battery cards will be populated here -->
+      </section>
+
+      <!-- Control Response Modal -->
+      <div id="control-modal" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Control Response</h3>
+            <span class="modal-close">&times;</span>
+          </div>
+          <div class="modal-body" id="control-response">
+            <!-- Response content will be populated here -->
+          </div>
+        </div>
+      </div>
+    </main>
+    <script src="/static/admin.js"></script>
+  </body>
+</html>
