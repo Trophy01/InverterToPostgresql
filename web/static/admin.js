@@ -2,6 +2,8 @@ const btnRefresh = document.getElementById('refresh');
 const batteriesGrid = document.getElementById('batteries-grid');
 const controlModal = document.getElementById('control-modal');
 const controlResponse = document.getElementById('control-response');
+const historyModal = document.getElementById('history-modal');
+const historyTitle = document.getElementById('history-title');
 
 let batteries = [];
 let systemStatus = { database: false, mqtt: false };
@@ -161,7 +163,12 @@ async function sendControlCommand(deviceId, controlType, value) {
       body: JSON.stringify({ device_id: deviceId, control_type: controlType, value: value })
     });
     
-    showControlResponse(response);
+    if (response.success && response.command_id) {
+      // Start polling for response
+      pollControlResponse(response.command_id, response);
+    } else {
+      showControlResponse(response);
+    }
   } catch (error) {
     console.error('Control command failed:', error);
     showControlResponse({
@@ -171,6 +178,62 @@ async function sendControlCommand(deviceId, controlType, value) {
       timestamp: new Date().toISOString()
     });
   }
+}
+
+async function pollControlResponse(commandId, initialResponse) {
+  const maxAttempts = 30; // Poll for up to 30 seconds
+  let attempts = 0;
+  
+  const poll = async () => {
+    try {
+      const status = await fetchJSON(`/api/admin/control/${commandId}/status`);
+      
+      if (status.status === 'completed' || status.status === 'failed') {
+        showControlResponse({
+          success: status.status === 'completed',
+          message: status.status === 'completed' ? 
+            `Command completed successfully. Battery response: ${status.response || 'No response data'}` :
+            `Command failed: ${status.error || 'Unknown error'}`,
+          command: initialResponse.command,
+          timestamp: status.sent_time,
+          response: status.response
+        });
+        return;
+      }
+      
+      attempts++;
+      if (attempts < maxAttempts) {
+        setTimeout(poll, 1000); // Poll every second
+      } else {
+        showControlResponse({
+          success: false,
+          message: 'Command timeout - no response from battery',
+          command: initialResponse.command,
+          timestamp: initialResponse.timestamp
+        });
+      }
+    } catch (error) {
+      console.error('Error polling control status:', error);
+      showControlResponse({
+        success: false,
+        message: 'Error checking command status',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  };
+  
+  // Show initial "sent" response
+  showControlResponse({
+    success: true,
+    message: 'Command sent to battery, waiting for response...',
+    command: initialResponse.command,
+    timestamp: initialResponse.timestamp,
+    status: 'waiting'
+  });
+  
+  // Start polling
+  setTimeout(poll, 1000);
 }
 
 function showControlResponse(response) {
@@ -190,11 +253,105 @@ function showControlResponse(response) {
   controlModal.style.display = 'block';
 }
 
-function viewHistory(deviceId) {
-  // This would open a modal or navigate to a history view
-  console.log('View history for:', deviceId);
-  // For now, just show an alert
-  alert(`History view for ${deviceId} - Feature coming soon`);
+async function viewHistory(deviceId) {
+  try {
+    historyTitle.textContent = `Battery History - ${deviceId}`;
+    historyModal.style.display = 'block';
+    
+    // Show loading state
+    document.querySelectorAll('.tab-content tbody').forEach(tbody => {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 20px;">Loading...</td></tr>';
+    });
+    
+    const history = await fetchJSON(`/api/admin/battery/${deviceId}/history`);
+    
+    // Populate status data
+    const statusTbody = document.getElementById('status-tbody');
+    if (history.status && history.status.length > 0) {
+      statusTbody.innerHTML = history.status.map(record => `
+        <tr>
+          <td>${new Date(record.time).toLocaleString()}</td>
+          <td>${formatValue(record.current_amps)}</td>
+          <td>${formatValue(record.current_type)}</td>
+          <td>${formatValue(record.soc_percent, '%')}</td>
+          <td>${formatValue(record.total_voltage_mv)}</td>
+          <td>${formatValue(record.remaining_capacity_ah)}</td>
+          <td>${formatValue(record.total_capacity_ah)}</td>
+          <td>${formatValue(record.loop_cycles)}</td>
+          <td>${formatValue(record.status_text)}</td>
+        </tr>
+      `).join('');
+    } else {
+      statusTbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 20px;">No status data available</td></tr>';
+    }
+    
+    // Populate position data
+    const positionTbody = document.getElementById('position-tbody');
+    if (history.position && history.position.length > 0) {
+      positionTbody.innerHTML = history.position.map(record => `
+        <tr>
+          <td>${new Date(record.time).toLocaleString()}</td>
+          <td>${formatValue(record.lat)}</td>
+          <td>${formatValue(record.lon)}</td>
+          <td>${formatValue(record.direction)}</td>
+          <td>${formatValue(record.sats_total)}</td>
+          <td>${formatValue(record.sats_gps)}</td>
+          <td>${formatValue(record.sats_beidou)}</td>
+          <td>${formatValue(record.hemisphere)}</td>
+        </tr>
+      `).join('');
+    } else {
+      positionTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No position data available</td></tr>';
+    }
+    
+    // Populate temperature data
+    const temperaturesTbody = document.getElementById('temperatures-tbody');
+    if (history.temperatures && history.temperatures.length > 0) {
+      temperaturesTbody.innerHTML = history.temperatures.map(record => `
+        <tr>
+          <td>${new Date(record.time).toLocaleString()}</td>
+          <td>${Array.isArray(record.bms_temps_c) ? record.bms_temps_c.join(', ') : formatValue(record.bms_temps_c)}</td>
+          <td>${Array.isArray(record.cell_temps_c) ? record.cell_temps_c.join(', ') : formatValue(record.cell_temps_c)}</td>
+        </tr>
+      `).join('');
+    } else {
+      temperaturesTbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No temperature data available</td></tr>';
+    }
+    
+    // Populate cell data
+    const cellsTbody = document.getElementById('cells-tbody');
+    if (history.cells && history.cells.length > 0) {
+      cellsTbody.innerHTML = history.cells.map(record => `
+        <tr>
+          <td>${new Date(record.time).toLocaleString()}</td>
+          <td>${Array.isArray(record.cell_voltages_mv) ? record.cell_voltages_mv.join(', ') : formatValue(record.cell_voltages_mv)}</td>
+        </tr>
+      `).join('');
+    } else {
+      cellsTbody.innerHTML = '<tr><td colspan="2" style="text-align: center; padding: 20px;">No cell data available</td></tr>';
+    }
+    
+    // Populate network data
+    const networkTbody = document.getElementById('network-tbody');
+    if (history.network && history.network.length > 0) {
+      networkTbody.innerHTML = history.network.map(record => `
+        <tr>
+          <td>${new Date(record.time).toLocaleString()}</td>
+          <td>${formatValue(record.rssi)}</td>
+          <td>${formatValue(record.rsrp)}</td>
+          <td>${formatValue(record.rsrq)}</td>
+          <td>${formatValue(record.snr)}</td>
+          <td>${formatValue(record.network_type)}</td>
+        </tr>
+      `).join('');
+    } else {
+      networkTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No network data available</td></tr>';
+    }
+    
+  } catch (error) {
+    console.error('Failed to load history:', error);
+    alert(`Failed to load history for ${deviceId}: ${error.message}`);
+  }
 }
 
 function viewLocation(deviceId) {
@@ -208,14 +365,32 @@ function viewLocation(deviceId) {
 }
 
 // Modal functionality
-document.querySelector('.modal-close').addEventListener('click', () => {
-  controlModal.style.display = 'none';
+document.querySelectorAll('.modal-close').forEach(closeBtn => {
+  closeBtn.addEventListener('click', (e) => {
+    const modal = e.target.closest('.modal');
+    modal.style.display = 'none';
+  });
 });
 
 window.addEventListener('click', (e) => {
-  if (e.target === controlModal) {
-    controlModal.style.display = 'none';
+  if (e.target.classList.contains('modal')) {
+    e.target.style.display = 'none';
   }
+});
+
+// History tab functionality
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const tabName = e.target.dataset.tab;
+    
+    // Update active tab button
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    
+    // Update active tab content
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.getElementById(`history-${tabName}`).classList.add('active');
+  });
 });
 
 // Event listeners

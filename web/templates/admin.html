@@ -74,6 +74,120 @@
           </div>
         </div>
       </div>
+
+      <!-- History Modal -->
+      <div id="history-modal" class="modal">
+        <div class="modal-content large">
+          <div class="modal-header">
+            <h3 id="history-title">Battery History</h3>
+            <span class="modal-close">&times;</span>
+          </div>
+          <div class="modal-body">
+            <div class="history-tabs">
+              <button class="tab-btn active" data-tab="status">Status</button>
+              <button class="tab-btn" data-tab="position">Position</button>
+              <button class="tab-btn" data-tab="temperatures">Temperatures</button>
+              <button class="tab-btn" data-tab="cells">Cell Voltages</button>
+              <button class="tab-btn" data-tab="network">Network</button>
+            </div>
+            <div class="history-content">
+              <div id="history-status" class="tab-content active">
+                <div class="history-table-container">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Current (A)</th>
+                        <th>Current Type</th>
+                        <th>SOC (%)</th>
+                        <th>Voltage (mV)</th>
+                        <th>Remaining (Ah)</th>
+                        <th>Total (Ah)</th>
+                        <th>Cycles</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="status-tbody">
+                      <!-- Status data will be populated here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="history-position" class="tab-content">
+                <div class="history-table-container">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                        <th>Direction</th>
+                        <th>Total Sats</th>
+                        <th>GPS Sats</th>
+                        <th>Beidou Sats</th>
+                        <th>Hemisphere</th>
+                      </tr>
+                    </thead>
+                    <tbody id="position-tbody">
+                      <!-- Position data will be populated here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="history-temperatures" class="tab-content">
+                <div class="history-table-container">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>BMS Temps (°C)</th>
+                        <th>Cell Temps (°C)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="temperatures-tbody">
+                      <!-- Temperature data will be populated here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="history-cells" class="tab-content">
+                <div class="history-table-container">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Cell Voltages (mV)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cells-tbody">
+                      <!-- Cell data will be populated here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="history-network" class="tab-content">
+                <div class="history-table-container">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>RSSI</th>
+                        <th>RSRP</th>
+                        <th>RSRQ</th>
+                        <th>SNR</th>
+                        <th>Network Type</th>
+                      </tr>
+                    </thead>
+                    <tbody id="network-tbody">
+                      <!-- Network data will be populated here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
     <script src="/static/admin.js"></script>
   </body>

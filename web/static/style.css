@@ -190,11 +190,12 @@ main{padding:20px;position:relative;z-index:1}
 /* Modal styles */
 .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5)}
 .modal-content{background:var(--card);margin:5% auto;padding:0;width:90%;max-width:500px;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1)}
+.modal-content.large{max-width:95%;max-height:90%;overflow:hidden}
 .modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--line)}
 .modal-header h3{margin:0;font-size:18px;font-weight:600}
 .modal-close{font-size:24px;font-weight:bold;cursor:pointer;color:var(--muted)}
 .modal-close:hover{color:var(--fg)}
-.modal-body{padding:20px}
+.modal-body{padding:20px;max-height:70vh;overflow-y:auto}
 .response-status{font-size:16px;font-weight:600;margin-bottom:12px}
 .response-status.success{color:#166534}
 .response-status.error{color:#dc2626}
@@ -202,6 +203,21 @@ main{padding:20px;position:relative;z-index:1}
 .response-command{margin-bottom:8px;color:var(--muted);font-family:monospace;font-size:12px}
 .response-error{margin-bottom:8px;color:#dc2626;font-size:12px}
 .response-time{color:var(--muted);font-size:12px}
+
+/* History modal styles */
+.history-tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+.tab-btn{padding:8px 16px;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+.tab-btn:hover{color:var(--fg)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.history-content{position:relative}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.history-table-container{overflow-x:auto;max-height:50vh;border:1px solid var(--line);border-radius:8px}
+.history-table{width:100%;border-collapse:collapse;font-size:12px}
+.history-table th{background:#f9fafb;padding:8px;text-align:left;font-weight:600;color:var(--fg);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
+.history-table td{padding:8px;border-bottom:1px solid #f3f4f6;color:var(--fg)}
+.history-table tr:hover{background:#f9fafb}
+.history-table tr:last-child td{border-bottom:none}
 
 /* Responsive admin styles */
 @media (max-width: 760px){

@@ -2,6 +2,9 @@
 import os
 import json
 import bcrypt
+import uuid
+import threading
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -9,6 +12,7 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for, f
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import paho.mqtt.client as mqtt
 
 
 DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
@@ -16,6 +20,14 @@ DB_PORT = int(os.getenv('DB_PORT', '5432'))
 DB_NAME = os.getenv('DB_NAME', 'batteries')
 DB_USER = os.getenv('DB_USER', 'troy')
 DB_PASS = os.getenv('DB_PASS', 's3rv3r5mx')
+
+# MQTT Configuration
+MQTT_BROKER = os.getenv('MQTT_BROKER', 'mqtt-cloud-1.telco.co.zw')
+MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
+
+# Global control command tracking
+control_commands = {}
+command_lock = threading.Lock()
 
 
 def get_conn():
@@ -424,34 +436,162 @@ def admin_batteries():
 @app.route('/api/admin/battery/<device_id>/history')
 @login_required
 def admin_battery_history(device_id: str):
-    """Get last 20 records for a specific battery"""
+    """Get last 20 records for a specific battery with all available fields"""
     if current_user.battery_id != 'telco':
         return jsonify({'error': 'Access denied'}), 403
     
     safe_id = ''.join(c for c in device_id if c.isalnum() or c == '_')
-    history = {'status': [], 'position': []}
+    history = {'status': [], 'position': [], 'temperatures': [], 'cells': [], 'network': []}
     
     with get_conn() as conn:
         with conn.cursor() as cur:
             try:
-                cur.execute(f"SELECT time, soc_percent, total_voltage_mv, current_amps, status_text FROM status_{safe_id} ORDER BY time DESC LIMIT 20")
-                history['status'] = [{'time': r[0].isoformat(), 'soc': r[1], 'voltage': r[2], 'current': r[3], 'status': r[4]} for r in cur.fetchall()]
+                # Get all status fields
+                cur.execute(f"""
+                    SELECT time, current_amps, current_type, soc_percent, total_voltage_mv, 
+                           remaining_capacity_ah, total_capacity_ah, loop_cycles, status_text
+                    FROM status_{safe_id} ORDER BY time DESC LIMIT 20
+                """)
+                history['status'] = [
+                    {
+                        'time': r[0].isoformat(), 
+                        'current_amps': r[1], 
+                        'current_type': r[2], 
+                        'soc_percent': r[3], 
+                        'total_voltage_mv': r[4], 
+                        'remaining_capacity_ah': r[5], 
+                        'total_capacity_ah': r[6], 
+                        'loop_cycles': r[7], 
+                        'status_text': r[8]
+                    } for r in cur.fetchall()
+                ]
             except Exception:
                 pass
             
             try:
-                cur.execute(f"SELECT time, lat, lon, sats_total, direction FROM pos_{safe_id} ORDER BY time DESC LIMIT 20")
-                history['position'] = [{'time': r[0].isoformat(), 'lat': r[1], 'lon': r[2], 'sats': r[3], 'direction': r[4]} for r in cur.fetchall()]
+                # Get all position fields
+                cur.execute(f"""
+                    SELECT time, lat, lon, direction, sats_total, sats_gps, sats_beidou, hemisphere
+                    FROM pos_{safe_id} ORDER BY time DESC LIMIT 20
+                """)
+                history['position'] = [
+                    {
+                        'time': r[0].isoformat(), 
+                        'lat': r[1], 
+                        'lon': r[2], 
+                        'direction': r[3], 
+                        'sats_total': r[4], 
+                        'sats_gps': r[5], 
+                        'sats_beidou': r[6], 
+                        'hemisphere': r[7]
+                    } for r in cur.fetchall()
+                ]
+            except Exception:
+                pass
+            
+            try:
+                # Get temperature data
+                cur.execute(f"""
+                    SELECT time, bms_temps_c, cell_temps_c
+                    FROM temps_{safe_id} ORDER BY time DESC LIMIT 20
+                """)
+                history['temperatures'] = [
+                    {
+                        'time': r[0].isoformat(), 
+                        'bms_temps_c': r[1] or [], 
+                        'cell_temps_c': r[2] or []
+                    } for r in cur.fetchall()
+                ]
+            except Exception:
+                pass
+            
+            try:
+                # Get cell voltage data
+                cur.execute(f"""
+                    SELECT time, cell_voltages_mv
+                    FROM cells_{safe_id} ORDER BY time DESC LIMIT 20
+                """)
+                history['cells'] = [
+                    {
+                        'time': r[0].isoformat(), 
+                        'cell_voltages_mv': r[1] or []
+                    } for r in cur.fetchall()
+                ]
+            except Exception:
+                pass
+            
+            try:
+                # Get network data
+                cur.execute(f"""
+                    SELECT time, rssi, rsrp, rsrq, snr, network_type
+                    FROM net_{safe_id} ORDER BY time DESC LIMIT 20
+                """)
+                history['network'] = [
+                    {
+                        'time': r[0].isoformat(), 
+                        'rssi': r[1], 
+                        'rsrp': r[2], 
+                        'rsrq': r[3], 
+                        'snr': r[4], 
+                        'network_type': r[5]
+                    } for r in cur.fetchall()
+                ]
             except Exception:
                 pass
     
     return jsonify(history)
 
 
+def send_mqtt_control_command(device_id: str, control_type: int, value: int) -> str:
+    """Send MQTT control command and return command ID for tracking"""
+    command_id = str(uuid.uuid4())
+    
+    # Build MQTT message header (same format as positiontodb.py)
+    START_CODE = 0x4350
+    PROTOCOL_VERSION = 0x11
+    import struct
+    
+    # Generate sequence and transaction IDs
+    seq = int(time.time()) & 0xFFFF
+    txn = int(time.time() * 1000) & 0xFF
+    
+    header = struct.pack('!H B H B', START_CODE, PROTOCOL_VERSION, seq, txn)
+    body = struct.pack('BB', control_type & 0xFF, value & 0xFF)
+    payload = header + body
+    
+    # Store command for tracking
+    with command_lock:
+        control_commands[command_id] = {
+            'device_id': device_id,
+            'control_type': control_type,
+            'value': value,
+            'sent_time': datetime.utcnow(),
+            'status': 'sent',
+            'response': None
+        }
+    
+    # Send MQTT command
+    try:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        
+        topic = f"/SW_GPS/{device_id}/user/bmsCtrReq"
+        client.publish(topic, payload, qos=1, retain=False)
+        client.disconnect()
+        
+        return command_id
+    except Exception as e:
+        with command_lock:
+            if command_id in control_commands:
+                control_commands[command_id]['status'] = 'failed'
+                control_commands[command_id]['error'] = str(e)
+        raise e
+
+
 @app.route('/api/admin/control', methods=['POST'])
 @login_required
 def admin_control():
-    """Send control command to battery"""
+    """Send control command to battery via MQTT"""
     if current_user.battery_id != 'telco':
         return jsonify({'error': 'Access denied'}), 403
     
@@ -463,14 +603,48 @@ def admin_control():
     if not all([device_id, control_type is not None, value is not None]):
         return jsonify({'error': 'Missing parameters'}), 400
     
-    # Here you would integrate with your MQTT control system
-    # For now, return a mock response
-    return jsonify({
-        'success': True,
-        'message': f'Control command sent to {device_id}',
-        'command': f'Type {control_type}, Value {value}',
-        'timestamp': datetime.utcnow().isoformat()
-    })
+    try:
+        command_id = send_mqtt_control_command(device_id, control_type, value)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Control command sent to {device_id}',
+            'command_id': command_id,
+            'command': f'Type {control_type}, Value {value}',
+            'timestamp': datetime.utcnow().isoformat(),
+            'status': 'sent'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Failed to send control command: {str(e)}',
+            'timestamp': datetime.utcnow().isoformat(),
+            'status': 'failed'
+        }), 500
+
+
+@app.route('/api/admin/control/<command_id>/status')
+@login_required
+def admin_control_status(command_id: str):
+    """Check status of a control command"""
+    if current_user.battery_id != 'telco':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    with command_lock:
+        if command_id not in control_commands:
+            return jsonify({'error': 'Command not found'}), 404
+        
+        command = control_commands[command_id]
+        return jsonify({
+            'command_id': command_id,
+            'device_id': command['device_id'],
+            'control_type': command['control_type'],
+            'value': command['value'],
+            'status': command['status'],
+            'sent_time': command['sent_time'].isoformat(),
+            'response': command.get('response'),
+            'error': command.get('error')
+        })
 
 
 @app.route('/api/admin/status')
