@@ -715,17 +715,23 @@ class DefinitiveGPSDecoder:
             }
 
         if coord_result:
-            # Enforce hemisphere for Zimbabwe - always South/East
-            # For Zimbabwe: latitude should always be negative (South), longitude positive (East)
-            coord_result['latitude'] = -abs(coord_result['latitude'])  # Always South for Zimbabwe
-            coord_result['longitude'] = abs(coord_result['longitude'])  # Always East for Zimbabwe
-            
-            # Log flag information for debugging but don't use it for hemisphere correction
+            # Apply hemisphere corrections based on GPS device flags
             if extra_fields and extra_fields.get('flags') is not None:
                 flags = extra_fields.get('flags')
-                west = bool(flags & 0x80)
+                # Use multiple flag bits for robustness
+                west = bool(flags & 0x80 or flags & 0x20 or flags & 0x10 or flags & 0x02)
                 south = bool(flags & 0x08 or flags & 0x02 or flags & 0x01)
-                print(f"   🚩 Flags: 0x{flags:02X}, South: {south}, West: {west}, but using Zimbabwe defaults")
+                
+                # Apply hemisphere corrections based on device flags
+                coord_result['latitude'] = -abs(coord_result['latitude']) if south else abs(coord_result['latitude'])
+                coord_result['longitude'] = -abs(coord_result['longitude']) if west else abs(coord_result['longitude'])
+                
+                print(f"   🚩 Applied flags: 0x{flags:02X}, South: {south}, West: {west}")
+            else:
+                # Fallback: assume Zimbabwe (South/East) if no flags available
+                coord_result['latitude'] = -abs(coord_result['latitude'])  # South
+                coord_result['longitude'] = abs(coord_result['longitude'])  # East
+                print(f"   🚩 No flags available, using Zimbabwe defaults (South/East)")
             print(f"✅ SUCCESS! Coordinates decoded from payload scan:")
             print(f"   📍 Latitude:  {coord_result['latitude']:.8f}°")
             print(f"   📍 Longitude: {coord_result['longitude']:.8f}°")

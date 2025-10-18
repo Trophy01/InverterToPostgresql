@@ -253,18 +253,23 @@ class InlineDecoder:
                 now = datetime.now()
                 timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
             
-            # Apply hemisphere corrections - Zimbabwe is always South/East
-            # For Zimbabwe: latitude should always be negative (South), longitude positive (East)
-            latitude = -abs(latitude)  # Always South for Zimbabwe
-            longitude = abs(longitude)  # Always East for Zimbabwe
-            
-            # Log flag information for debugging but don't use it for hemisphere correction
+            # Apply hemisphere corrections based on GPS device flags
             if proto_result and 'flags' in proto_result:
                 flags = proto_result['flags']
-                west = bool(flags & 0x80)
+                # Use multiple flag bits for robustness
+                west = bool(flags & 0x80 or flags & 0x20 or flags & 0x10 or flags & 0x02)
                 south = bool(flags & 0x08 or flags & 0x02 or flags & 0x01)
-                # Just log the flags for debugging, but don't change coordinates
-                logging.debug(f"Flags: 0x{flags:02X}, South: {south}, West: {west}, but using Zimbabwe defaults")
+                
+                # Apply hemisphere corrections based on device flags
+                latitude = -abs(latitude) if south else abs(latitude)
+                longitude = -abs(longitude) if west else abs(longitude)
+                
+                logging.debug(f"Applied flags: 0x{flags:02X}, South: {south}, West: {west}")
+            else:
+                # Fallback: assume Zimbabwe (South/East) if no flags available
+                latitude = -abs(latitude)  # South
+                longitude = abs(longitude)  # East
+                logging.debug("No flags available, using Zimbabwe defaults (South/East)")
             
             satellites = beidou_sat + gps_sat
             
