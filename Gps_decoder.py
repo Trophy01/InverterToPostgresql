@@ -715,16 +715,17 @@ class DefinitiveGPSDecoder:
             }
 
         if coord_result:
-            # Enforce hemisphere sign from flags if available, but prefer East (positive) unless W bit present
+            # Enforce hemisphere for Zimbabwe - always South/East
+            # For Zimbabwe: latitude should always be negative (South), longitude positive (East)
+            coord_result['latitude'] = -abs(coord_result['latitude'])  # Always South for Zimbabwe
+            coord_result['longitude'] = abs(coord_result['longitude'])  # Always East for Zimbabwe
+            
+            # Log flag information for debugging but don't use it for hemisphere correction
             if extra_fields and extra_fields.get('flags') is not None:
                 flags = extra_fields.get('flags')
-                # Treat only bit7 (0x80) as West; others ignored
                 west = bool(flags & 0x80)
                 south = bool(flags & 0x08 or flags & 0x02 or flags & 0x01)
-                # Latitude: S -> negative
-                coord_result['latitude'] = -abs(coord_result['latitude']) if south else abs(coord_result['latitude'])
-                # Longitude: only set negative if W bit; otherwise force positive (East)
-                coord_result['longitude'] = -abs(coord_result['longitude']) if west else abs(coord_result['longitude'])
+                print(f"   🚩 Flags: 0x{flags:02X}, South: {south}, West: {west}, but using Zimbabwe defaults")
             print(f"✅ SUCCESS! Coordinates decoded from payload scan:")
             print(f"   📍 Latitude:  {coord_result['latitude']:.8f}°")
             print(f"   📍 Longitude: {coord_result['longitude']:.8f}°")
