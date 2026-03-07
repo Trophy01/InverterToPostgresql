@@ -43,14 +43,14 @@ pip install -r requirements.txt  # if present, else: pip install paho-mqtt psyco
 ## Quick start
 1) Start an SSH tunnel to the remote PostgreSQL (example):
 ```bash
-ssh -L 5432:127.0.0.1:5432 sa@154.119.80.42
+ssh -L 5432 name@ip
 ```
 2) Run the ingest bridge for 2m30s and write to PostgreSQL:
 ```bash
 python mqtt_to_postgres.py -v \
   --device 862317043590129 \
   --db-host 127.0.0.1 --db-port 5432 \
-  --db-name batteries --db-user troy --db-password s3rv3r5mx
+  --db-name batteries --db-user user --db-password p@Swd
 ```
 This will:
 - Subscribe to `/SW_GPS/#`
@@ -64,16 +64,16 @@ Default DB settings used by the scripts (override with CLI flags):
 - host: `127.0.0.1`
 - port: `5432`
 - database: `batteries`
-- user: `troy`
-- password: `s3rv3r5mx`
+- user: `use`
+- password: `paswd`
 
 Open a tunnel before running the bridge:
 ```bash
-ssh -L 5432:127.0.0.1:5432 sa@154.119.80.42
+ssh - L tunnel
 ```
 You can test connectivity with:
 ```bash
-PGPASSWORD=s3rv3r5mx psql -h 127.0.0.1 -p 5432 -U troy -d batteries -c "select now();"
+PGPASSWORD=paswd psql -h 127.0.0.1 -p 5432 -U user -d batteries -c "select now();"
 ```
 
 ## Telemetry to PostgreSQL (ingestion window and batch write)
@@ -82,7 +82,7 @@ Use `mqtt_to_postgres.py` to ingest dynamic battery telemetry and write to DB.
 python mqtt_to_postgres.py -v \
   --device <DEVICE_ID> \
   --db-host 127.0.0.1 --db-port 5432 \
-  --db-name batteries --db-user troy --db-password s3rv3r5mx
+  --db-name batteries --db-user user --db-password paswd
 ```
 Behavior:
 - Sends periodic requests to the device(s) to stimulate responses
